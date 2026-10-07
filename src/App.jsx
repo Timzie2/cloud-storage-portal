@@ -8,10 +8,12 @@ import Shared from "./pages/Shared";
 import Recent from "./pages/Recent";
 import Trash from "./pages/Trash";
 import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import AppLayout from "./components/AppLayout";
+import NovaLoader from "./components/NovaLoader";
 
 import "./styles/theme.css";
 import "./styles/components.css";
@@ -21,7 +23,7 @@ function AppContent() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <p>Loading...</p>;
+    return <NovaLoader />;
   }
 
   return (
@@ -45,6 +47,7 @@ function AppContent() {
             <Route path="/recent" element={<Recent />} />
             <Route path="/trash" element={<Trash />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/profile" element={<Profile />} />
           </Routes>
         </AppLayout>
       ) : (

@@ -11,6 +11,7 @@ import {
   getProfile,
   updateProfile,
 } from "../services/profile";
+import NovaLoader from "../components/NovaLoader";
 
 function Settings() {
   const { user } = useAuth();
@@ -109,15 +110,8 @@ window.dispatchEvent(
           </div>
 
           {loading ? (
-            <div className="settings-loading">
-              <Loader2
-                size={18}
-                className="settings-spinner"
-              />
-
-              <span>Loading profile...</span>
-            </div>
-          ) : (
+  <NovaLoader message="Loading your settings..." />
+) : (
             <form
               className="profile-form"
               onSubmit={handleSaveProfile}

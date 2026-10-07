@@ -23,6 +23,7 @@ import {
 } from "../services/files";
 
 import FilePreviewModal from "../components/FilePreviewModal";
+import NovaLoader from "../components/NovaLoader";
 
 function formatFileSize(bytes) {
   if (!bytes) return "0 B";
@@ -156,24 +157,8 @@ function Shared() {
   }
 
   if (loading) {
-    return (
-      <main className="dashboard shared-page">
-        <section className="dashboard-content">
-          <div className="shared-page-header">
-            <p className="dashboard-eyebrow">COLLABORATION</p>
-            <h1>Shared</h1>
-            <p>
-              Files shared by you and with you.
-            </p>
-          </div>
-
-          <div className="shared-loading">
-            Loading shared files...
-          </div>
-        </section>
-      </main>
-    );
-  }
+  return <NovaLoader message="Loading shared files..." />;
+}
 
   return (
     <main className="dashboard shared-page">

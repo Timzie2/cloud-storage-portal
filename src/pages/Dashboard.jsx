@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import NovaLoader from "../components/NovaLoader";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  User,
+  Settings,
   LogOut,
   FolderOpen,
   Share2,
@@ -35,6 +38,8 @@ function getGreeting() {
 
 function Dashboard() {
   const { user, logout } = useAuth();
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
 
     const refreshStorageQuota = async () => {
   if (!user) return;
@@ -57,38 +62,44 @@ function Dashboard() {
   const [files, setFiles] = useState([]);
   const [sharedCount, setSharedCount] = useState(0);
   const [profile, setProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [storageQuota, setStorageQuota] = useState(null);
   const [loadingFiles, setLoadingFiles] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const searchInputRef = useRef(null);
+  const searchRef = useRef(null);
+  const uploadTriggerRef = useRef(null);
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const loadFiles = async () => {
-      if (!user) return;
+  const loadDashboardData = async () => {
+  if (!user) return;
 
-      try {
-  const [data, sharedCount, quota, profileData] =
-  await Promise.all([
-    getUserFiles(user.id),
-    getSharedFileCount(user.id),
-    getStorageQuota(user.id),
-    getProfile(user.id),
-  ]);
+  try {
+    const [data, sharedCount, quota, profileData] =
+      await Promise.all([
+        getUserFiles(user.id),
+        getSharedFileCount(user.id),
+        getStorageQuota(user.id),
+        getProfile(user.id),
+      ]);
 
-  setFiles(data);
-  setSharedCount(sharedCount);
-  setStorageQuota(quota);
-  setProfile(profileData);
-} catch (error) {
-        console.error("Failed to load files:", error);
-      } finally {
-        setLoadingFiles(false);
-      }
-    };
+    setFiles(data);
+    setSharedCount(sharedCount);
+    setStorageQuota(quota);
+    setProfile(profileData);
+  } catch (error) {
+    console.error("Failed to load dashboard data:", error);
+  } finally {
+  setLoadingFiles(false);
+  setProfileLoading(false);
+}
+};
 
-    loadFiles();
-  }, [user]);
+useEffect(() => {
+  loadDashboardData();
+}, [user]);
 
   useEffect(() => {
   if (!user) return;
@@ -112,14 +123,68 @@ function Dashboard() {
   };
 }, [user]);
 
+useEffect(() => {
+  if (!profileMenuOpen) return;
+
+  const handleOutsideClick = (event) => {
+    if (!profileMenuRef.current?.contains(event.target)) {
+      setProfileMenuOpen(false);
+    }
+  };
+
+  document.addEventListener("mousedown", handleOutsideClick);
+
+  return () => {
+    document.removeEventListener(
+      "mousedown",
+      handleOutsideClick
+    );
+  };
+}, [profileMenuOpen]);
+
+useEffect(() => {
+  if (!mobileSearchOpen) return;
+
+  const handleOutsideClick = (event) => {
+    if (!searchRef.current?.contains(event.target)) {
+      setMobileSearchOpen(false);
+    }
+  };
+
+  const handleEscape = (event) => {
+    if (event.key === "Escape") {
+      setMobileSearchOpen(false);
+    }
+  };
+
+  document.addEventListener("mousedown", handleOutsideClick);
+  document.addEventListener("keydown", handleEscape);
+
+  return () => {
+    document.removeEventListener(
+      "mousedown",
+      handleOutsideClick
+    );
+
+    document.removeEventListener(
+      "keydown",
+      handleEscape
+    );
+  };
+}, [mobileSearchOpen]);
+
   const filteredFiles = files.filter((file) =>
   file.name
     ?.toLowerCase()
     .includes(searchQuery.trim().toLowerCase())
 );
 
-  return (
-    <main className="dashboard dashboard-home">
+  if (profileLoading) {
+  return <NovaLoader message="Preparing your workspace..." />;
+}
+
+return (
+  <main className="dashboard dashboard-home">
 
       {/* =========================================
           HEADER
@@ -130,41 +195,145 @@ function Dashboard() {
     <Logo />
   </div>
 
-  <div className="dashboard-search">
-    <Search size={17} />
+  <div
+  ref={searchRef}
+  className={`dashboard-search ${
+    mobileSearchOpen ? "mobile-search-open" : ""
+  }`}
+  onClick={() => {
+    if (
+      window.innerWidth <= 600 &&
+      !mobileSearchOpen
+    ) {
+      setMobileSearchOpen(true);
 
-    <input
-      type="search"
-      placeholder="Search files..."
-      value={searchQuery}
-      onChange={(event) => setSearchQuery(event.target.value)}
-      aria-label="Search files"
-    />
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 0);
+    }
+  }}
+>
+  <Search size={17} />
 
-    {searchQuery && (
-      <button
-        className="dashboard-search-clear"
-        onClick={() => setSearchQuery("")}
-        aria-label="Clear search"
-      >
-        ×
-      </button>
-    )}
-  </div>
+  <input
+    ref={searchInputRef}
+    type="search"
+    placeholder="Search files..."
+    value={searchQuery}
+    onChange={(event) =>
+      setSearchQuery(event.target.value)
+    }
+    aria-label="Search files"
+  />
+
+  {(searchQuery || mobileSearchOpen) && (
+    <button
+      type="button"
+      className="dashboard-search-clear"
+      onClick={(event) => {
+        event.stopPropagation();
+
+        setSearchQuery("");
+        setMobileSearchOpen(false);
+      }}
+      aria-label="Close search"
+    >
+      ×
+    </button>
+  )}
+</div>
 
   <div className="dashboard-header-actions">
   <NotificationBell />
 
   <ThemeToggle />
 
+  <div className="profile-menu-wrapper" ref={profileMenuRef}>
   <button
-    className="theme-toggle"
-    onClick={logout}
-    aria-label="Logout"
-    title="Logout"
+    type="button"
+    className="profile-menu-trigger"
+    onClick={() =>
+      setProfileMenuOpen((current) => !current)
+    }
+    aria-label="Open profile menu"
+    aria-expanded={profileMenuOpen}
   >
-    <LogOut size={18} />
+    <span className="profile-menu-avatar">
+      {(
+        profile?.display_name ||
+        user?.email ||
+        "U"
+      )
+        .charAt(0)
+        .toUpperCase()}
+    </span>
   </button>
+
+  {profileMenuOpen && (
+    <div className="profile-menu">
+      <div className="profile-menu-header">
+        <div className="profile-menu-avatar large">
+          {(
+            profile?.display_name ||
+            user?.email ||
+            "U"
+          )
+            .charAt(0)
+            .toUpperCase()}
+        </div>
+
+        <div className="profile-menu-user">
+          <strong>
+            {profile?.display_name || "User"}
+          </strong>
+
+          <span>{user?.email}</span>
+        </div>
+      </div>
+
+      <div className="profile-menu-divider" />
+
+      <button
+        type="button"
+        className="profile-menu-item"
+        onClick={() => {
+          setProfileMenuOpen(false);
+          navigate("/profile");
+        }}
+      >
+        <User size={17} />
+        <span>Profile</span>
+      </button>
+
+      <button
+        type="button"
+        className="profile-menu-item"
+        onClick={() => {
+          setProfileMenuOpen(false);
+          navigate("/settings");
+        }}
+      >
+        <Settings size={17} />
+        <span>Settings</span>
+      </button>
+
+      <div className="profile-menu-divider" />
+
+      <button
+        type="button"
+        className="profile-menu-item danger"
+        onClick={async () => {
+          setProfileMenuOpen(false);
+          await logout();
+        }}
+      >
+        <LogOut size={17} />
+        <span>Log out</span>
+      </button>
+    </div>
+  )}
+</div>
+
 </div>
 </header>
 
@@ -185,8 +354,16 @@ function Dashboard() {
             </p>
 
             <h1 className="dashboard-title">
-              {getGreeting()} 👋
-            </h1>
+  {getGreeting()}
+  {profile?.display_name && (
+    <>
+      , {profile.display_name}
+    </>
+  )}
+  <span className="greeting-wave" aria-hidden="true">
+    👋
+  </span>
+</h1>
 
             <p className="dashboard-subtitle">
               Welcome back. Everything you need is right here.
@@ -230,15 +407,11 @@ function Dashboard() {
 
           <div className="dashboard-upload-panel">
             <UploadCard
-              onUploadComplete={async (uploadedFile) => {
-                setFiles((currentFiles) => [
-                  uploadedFile,
-                  ...currentFiles,
-                ]);
-
-                await refreshStorageQuota();
-              }}
-            />
+  uploadTriggerRef={uploadTriggerRef}
+  onUploadComplete={async () => {
+    await loadDashboardData();
+  }}
+/>
           </div>
 
         </div>
@@ -297,11 +470,7 @@ function Dashboard() {
 
           <button
             className="dashboard-action-card"
-            onClick={() =>
-              document
-                .querySelector(".upload-card input[type='file']")
-                ?.click()
-            }
+            onClick={() => uploadTriggerRef.current?.click()}
           >
             <div className="dashboard-action-icon">
               <UploadCloud size={20} />
@@ -347,6 +516,13 @@ function Dashboard() {
 
               await refreshStorageQuota();
             }}
+            onFileUpdated={(updatedFile) => {
+  setFiles((currentFiles) =>
+    currentFiles.map((file) =>
+      file.id === updatedFile.id ? updatedFile : file
+    )
+  );
+}}
             onViewAll={() => navigate("/files")}
           />
         )}

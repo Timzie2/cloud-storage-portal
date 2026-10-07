@@ -2,7 +2,7 @@ import {
   Home,
   Folder,
   Share2,
-  Settings,
+  Trash2,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
@@ -25,9 +25,9 @@ function MobileNav() {
       icon: Share2,
     },
     {
-      to: "/settings",
-      label: "Settings",
-      icon: Settings,
+      to: "/trash",
+      label: "Trash",
+      icon: Trash2,
     },
   ];
 

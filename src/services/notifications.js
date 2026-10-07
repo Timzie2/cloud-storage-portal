@@ -1,7 +1,9 @@
 import { supabase } from "./supabase";
 
+const NOTIFICATION_LIFETIME_DAYS = 7;
+
 /**
- * Get the current user's notifications.
+ * Get the current user's active notifications.
  */
 export async function getNotifications(userId) {
   if (!userId) {
@@ -12,6 +14,7 @@ export async function getNotifications(userId) {
     .from("notifications")
     .select("*")
     .eq("user_id", userId)
+    .gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -20,7 +23,7 @@ export async function getNotifications(userId) {
 }
 
 /**
- * Get the number of unread notifications.
+ * Get the number of unread, non-expired notifications.
  */
 export async function getUnreadNotificationCount(userId) {
   if (!userId) {
@@ -34,7 +37,8 @@ export async function getUnreadNotificationCount(userId) {
       head: true,
     })
     .eq("user_id", userId)
-    .eq("is_read", false);
+    .eq("is_read", false)
+    .gt("expires_at", new Date().toISOString());
 
   if (error) throw error;
 
@@ -94,6 +98,11 @@ export async function createNotification({
     );
   }
 
+  const expiresAt = new Date(
+    Date.now() +
+      NOTIFICATION_LIFETIME_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+
   const { data, error } = await supabase
     .from("notifications")
     .insert({
@@ -102,6 +111,7 @@ export async function createNotification({
       title,
       message,
       related_file_id: relatedFileId,
+      expires_at: expiresAt,
     })
     .select()
     .single();

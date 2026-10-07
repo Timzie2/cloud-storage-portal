@@ -1,3 +1,4 @@
+import NovaLoader from "../components/NovaLoader";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
@@ -15,6 +16,7 @@ import {
   Eye,
   Share2,
   Folder,
+  Pencil,
   Plus,
 } from "lucide-react";
 
@@ -28,7 +30,12 @@ import {
   moveFile,
 } from "../services/files";
 
+import { supabase } from "../services/supabase";
+
 import FilePreviewModal from "../components/FilePreviewModal";
+import UploadCard from "../components/UploadCard";
+import ShareFileModal from "../components/ShareFileModal";
+import FileDetailsModal from "../components/FileDetailsModal";
 
 import {
   getUserFolders,
@@ -135,37 +142,40 @@ function Files() {
   const [previewFile, setPreviewFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [detailsFile, setDetailsFile] = useState(null);
 
   const [shareFileData, setShareFileData] = useState(null);
-  const [shareEmail, setShareEmail] = useState("");
-  const [sharing, setSharing] = useState(false);
 
   const [moveFileData, setMoveFileData] = useState(null);
   const [movingFile, setMovingFile] = useState(false);
+  const [renameFileData, setRenameFileData] = useState(null);
+  const [renameFileName, setRenameFileName] = useState("");
+  const [renameFileExtension, setRenameFileExtension] = useState("");
+  const [renamingFile, setRenamingFile] = useState(false);
 
   const menuRef = useRef(null);
   const activeButtonRef = useRef(null);
 
-  useEffect(() => {
   const loadFilesAndFolders = async () => {
-    if (!user) return;
+  if (!user) return;
 
-    try {
-      const [fileData, folderData] = await Promise.all([
-        getUserFiles(user.id),
-        getUserFolders(user.id),
-      ]);
+  try {
+    const [fileData, folderData] = await Promise.all([
+      getUserFiles(user.id),
+      getUserFolders(user.id),
+    ]);
 
-      setFiles(fileData);
-      setFolders(folderData);
-    } catch (error) {
-      console.error("Failed to load files and folders:", error);
-    } finally {
-      setLoading(false);
-      setLoadingFolders(false);
-    }
-  };
+    setFiles(fileData);
+    setFolders(folderData);
+  } catch (error) {
+    console.error("Failed to load files and folders:", error);
+  } finally {
+    setLoading(false);
+    setLoadingFolders(false);
+  }
+};
 
+useEffect(() => {
   loadFilesAndFolders();
 }, [user]);
 
@@ -366,9 +376,9 @@ const folderPath = useMemo(() => {
   const handleShare = (file) => {
   setOpenMenu(null);
   setMenuPosition(null);
+  activeButtonRef.current = null;
 
   setShareFileData(file);
-  setShareEmail("");
 };
 
 const handleMoveOpen = (file) => {
@@ -379,43 +389,70 @@ const handleMoveOpen = (file) => {
   setMoveFileData(file);
 };
 
-const closeShare = () => {
-  if (sharing) return;
+const handleRenameOpen = (file) => {
+  setOpenMenu(null);
+  setMenuPosition(null);
+  activeButtonRef.current = null;
 
-  setShareFileData(null);
-  setShareEmail("");
+  const lastDot = file.name.lastIndexOf(".");
+  const hasExtension = lastDot > 0;
+
+  setRenameFileData(file);
+  setRenameFileName(
+    hasExtension ? file.name.slice(0, lastDot) : file.name
+  );
+  setRenameFileExtension(
+    hasExtension ? file.name.slice(lastDot) : ""
+  );
 };
 
-const handleShareSubmit = async (event) => {
+const handleRename = async (event) => {
   event.preventDefault();
 
-  if (!shareFileData || !user?.id) return;
-
-  const email = shareEmail.trim().toLowerCase();
-
-  if (!email) {
+  if (!renameFileData || !user?.id || !renameFileName.trim()) {
     return;
   }
 
-  if (email === user.email?.toLowerCase()) {
-    alert("You can't share a file with yourself.");
+  const newBaseName = renameFileName.trim();
+const newName = `${newBaseName}${renameFileExtension}`;
+
+if (newName === renameFileData.name) {
+    setRenameFileData(null);
+    setRenameFileName("");
     return;
   }
 
-  setSharing(true);
+  setRenamingFile(true);
 
   try {
-    await shareFile(shareFileData, user.id, email);
+    const { data, error } = await supabase
+      .from("files")
+      .update({ name: newName })
+      .eq("id", renameFileData.id)
+      .eq("user_id", user.id)
+      .select()
+      .single();
 
-    alert(`"${shareFileData.name}" was shared with ${email}.`);
+    if (error) throw error;
 
-    closeShare();
+    setFiles((currentFiles) =>
+      currentFiles.map((file) =>
+        file.id === data.id ? data : file
+      )
+    );
+
+    setRenameFileData(null);
+    setRenameFileName("");
   } catch (error) {
-    console.error("Share error:", error);
-    alert("Could not share this file. Please try again.");
+    console.error("Rename file error:", error);
+    alert("Could not rename the file. Please try again.");
   } finally {
-    setSharing(false);
+    setRenamingFile(false);
   }
+};
+
+const closeShare = () => {
+  setShareFileData(null);
 };
 
 const handleMove = async (folderId) => {
@@ -517,7 +554,7 @@ const handleDeleteFolder = async (folder) => {
       setOpenMenu(null);
       setMenuPosition(null);
 
-      await downloadFile(file.storage_path);
+      await downloadFile(file.storage_path, file.name);
     } catch (error) {
       console.error("Download error:", error);
       alert("Could not download this file.");
@@ -556,6 +593,10 @@ const handleDeleteFolder = async (folder) => {
     setPreviewUrl(null);
     setPreviewLoading(false);
   };
+
+  if (loading || loadingFolders) {
+  return <NovaLoader message="Loading your files..." />;
+}
 
   return (
     <main className="dashboard files-page">
@@ -703,9 +744,19 @@ const handleDeleteFolder = async (folder) => {
           </div>
         </div>
 
+        <div className="files-upload-section">
+  <UploadCard
+    folderId={currentFolderId}
+    onUploadComplete={async () => {
+      await loadFilesAndFolders();
+    }}
+  />
+</div>
+
         {!loadingFolders && folders.filter(
   (folder) => folder.parent_id === currentFolderId
 ).length > 0 && (
+  
   <div className="folders-section">
     <div className="folders-section-header">
       <h2>Folders</h2>
@@ -749,11 +800,8 @@ const handleDeleteFolder = async (folder) => {
   </div>
 )}
 
-        {loading ? (
-          <div className="files-loading">
-            Loading your files...
-          </div>
-        ) : visibleFiles.length === 0 ? (
+        {visibleFiles.length === 0 ? (
+
           <div className="empty-files files-empty-page">
             <File size={32} />
 
@@ -773,9 +821,18 @@ const handleDeleteFolder = async (folder) => {
           <div className="all-files-list">
   {visibleFiles.map((file) => (
               <div
-                className="all-file-row"
-                key={file.id}
-              >
+  className="all-file-row"
+  key={file.id}
+  onClick={() => handlePreview(file)}
+  role="button"
+  tabIndex={0}
+  onKeyDown={(event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handlePreview(file);
+    }
+  }}
+>
                 <div className="file-icon">
                   {getFileIcon(file.mime_type)}
                 </div>
@@ -798,10 +855,11 @@ const handleDeleteFolder = async (folder) => {
 
                 <div className="all-file-actions">
                   <button
-                    className="file-more"
-                    onClick={(event) =>
-                      handleMenuToggle(file, event)
-                    }
+  className="file-more"
+  onClick={(event) => {
+    event.stopPropagation();
+    handleMenuToggle(file, event);
+  }}
                     disabled={
                       deletingFile === file.id
                     }
@@ -821,9 +879,18 @@ const handleDeleteFolder = async (folder) => {
           <div className="files-grid">
   {visibleFiles.map((file) => (
               <div
-                className="file-grid-card"
-                key={file.id}
-              >
+  className="file-grid-card"
+  key={file.id}
+  onClick={() => handlePreview(file)}
+  role="button"
+  tabIndex={0}
+  onKeyDown={(event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handlePreview(file);
+    }
+  }}
+>
                 <div className="file-grid-icon">
                   {getFileIcon(file.mime_type)}
                 </div>
@@ -839,25 +906,22 @@ const handleDeleteFolder = async (folder) => {
                 </span>
 
                 <div className="file-grid-actions">
-                  <button
-                    onClick={() => handlePreview(file)}
-                  >
-                    <Eye size={16} />
-                    Preview
-                  </button>
 
                   <button
-                    onClick={() =>
-                      handleDownload(file)
-                    }
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDownload(file);
+                    }}
                   >
                     <Download size={16} />
                     Download
                   </button>
 
                   <button
-  type="button"
-  onClick={() => handleShare(file)}
+  onClick={(event) => {
+    event.stopPropagation();
+    handleShare(file);
+  }}
 >
   <Share2 size={16} />
   Share
@@ -865,17 +929,47 @@ const handleDeleteFolder = async (folder) => {
 
 <button
   type="button"
-  onClick={() => handleMoveOpen(file)}
+  onClick={(event) => {
+    event.stopPropagation();
+    handleRenameOpen(file);
+  }}
+>
+  <Pencil size={16} />
+  Rename
+</button>
+
+<button
+  type="button"
+  onClick={(event) => {
+    event.stopPropagation();
+    handleMoveOpen(file);
+  }}
 >
   <Folder size={16} />
   Move to folder
 </button>
 
+<button
+  type="button"
+  onClick={(event) => {
+    event.stopPropagation();
+    setOpenMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
+    setDetailsFile(file);
+  }}
+>
+  <File size={16} />
+  Details
+</button>
+
+
                   <button
                     className="danger-action"
-                    onClick={() =>
-                      handleDelete(file)
-                    }
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDelete(file);
+                    }}
                   >
                     <Trash2 size={16} />
                     Delete
@@ -904,14 +998,6 @@ const handleDeleteFolder = async (folder) => {
 
               return (
                 <>
-                  <button
-                    onClick={() =>
-                      handlePreview(file)
-                    }
-                  >
-                    <Eye size={16} />
-                    Preview
-                  </button>
 
                   <button
                     onClick={() =>
@@ -932,11 +1018,33 @@ const handleDeleteFolder = async (folder) => {
 
 <button
   type="button"
+  onClick={() => handleRenameOpen(file)}
+>
+  <Pencil size={16} />
+  Rename
+</button>
+
+<button
+  type="button"
   onClick={() => handleMoveOpen(file)}
 >
   <Folder size={16} />
   Move to folder
 </button>
+
+<button
+  type="button"
+  onClick={() => {
+    setOpenMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
+    setDetailsFile(file);
+  }}
+>
+  <File size={16} />
+  Details
+</button>
+
 
                   <button
                     className="danger-action"
@@ -955,85 +1063,13 @@ const handleDeleteFolder = async (folder) => {
       </section>
 
       {shareFileData && (
-  <div
-    className="share-modal-overlay"
-    onMouseDown={(event) => {
-      if (event.target === event.currentTarget) {
-        closeShare();
-      }
-    }}
-  >
-    <div
-      className="share-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="share-modal-title"
-    >
-      <div className="share-modal-header">
-        <div>
-          <p className="share-modal-eyebrow">SHARE FILE</p>
-
-          <h2 id="share-modal-title">
-            Share file
-          </h2>
-
-          <p className="share-modal-file-name">
-            {shareFileData.name}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="share-modal-close"
-          onClick={closeShare}
-          disabled={sharing}
-          aria-label="Close"
-        >
-          ×
-        </button>
-      </div>
-
-      <form onSubmit={handleShareSubmit}>
-        <label htmlFor="share-email">
-          Email address
-        </label>
-
-        <input
-          id="share-email"
-          type="email"
-          placeholder="name@example.com"
-          value={shareEmail}
-          onChange={(event) => setShareEmail(event.target.value)}
-          autoFocus
-          required
-        />
-
-        <p className="share-modal-hint">
-          Enter the email address of the person you want to share this
-          file with.
-        </p>
-
-        <div className="share-modal-actions">
-          <button
-            type="button"
-            className="share-cancel-button"
-            onClick={closeShare}
-            disabled={sharing}
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            className="share-submit-button"
-            disabled={sharing || !shareEmail.trim()}
-          >
-            {sharing ? "Sharing..." : "Share file"}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
+  <ShareFileModal
+    file={shareFileData}
+    onClose={closeShare}
+    onShared={async () => {
+  await loadFilesAndFolders();
+}}
+  />
 )}
 
 {showFolderModal && (
@@ -1220,17 +1256,143 @@ const handleDeleteFolder = async (folder) => {
   </div>
 )}
 
+{renameFileData && (
+  <div
+    className="folder-modal-overlay"
+    onMouseDown={(event) => {
+      if (
+        event.target === event.currentTarget &&
+        !renamingFile
+      ) {
+        setRenameFileData(null);
+        setRenameFileName("");
+      }
+    }}
+  >
+    <div
+      className="folder-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rename-file-modal-title"
+    >
+      <div className="folder-modal-header">
+        <div>
+          <p className="folder-modal-eyebrow">
+            RENAME FILE
+          </p>
+
+          <h2 id="rename-file-modal-title">
+            Rename file
+          </h2>
+
+          <p className="folder-modal-subtitle">
+            Give your file a new name.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="folder-modal-close"
+          onClick={() => {
+            setRenameFileData(null);
+            setRenameFileName("");
+          }}
+          disabled={renamingFile}
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </div>
+
+      <form onSubmit={handleRename}>
+        <label htmlFor="rename-file-name">
+          File name
+        </label>
+
+        <div className="rename-file-input-row">
+  <input
+    id="rename-file-name"
+    type="text"
+    value={renameFileName}
+    onChange={(event) =>
+      setRenameFileName(event.target.value)
+    }
+    autoFocus
+    maxLength={255}
+    required
+  />
+
+  {renameFileExtension && (
+    <span className="rename-file-extension">
+      {renameFileExtension}
+    </span>
+  )}
+</div>
+
+        <div className="folder-modal-actions">
+          <button
+            type="button"
+            className="folder-cancel-button"
+            onClick={() => {
+              setRenameFileData(null);
+              setRenameFileName("");
+            }}
+            disabled={renamingFile}
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            className="folder-create-button"
+            disabled={
+              renamingFile || !renameFileName.trim()
+            }
+          >
+            {renamingFile ? "Renaming..." : "Rename"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
       {previewFile && (
-        <FilePreviewModal
-          file={previewFile}
-          signedUrl={previewUrl}
-          onClose={closePreview}
-          onDownload={() =>
-            handleDownload(previewFile)
-          }
-          loading={previewLoading}
-        />
-      )}
+  <>
+    {previewLoading ? (
+      <div className="preview-overlay">
+        <div className="preview-loading">
+          <div className="preview-loading-spinner" />
+
+          <p>
+            Preparing preview...
+          </p>
+        </div>
+      </div>
+    ) : (
+      <FilePreviewModal
+        file={previewFile}
+        signedUrl={previewUrl}
+        onClose={closePreview}
+        onDownload={() =>
+          handleDownload(previewFile)
+        }
+      />
+    )}
+  </>
+)}
+
+{detailsFile && (
+  <FileDetailsModal
+    file={detailsFile}
+    folderName={
+      folders.find(
+        (folder) => folder.id === detailsFile.folder_id
+      )?.name || "My Files"
+    }
+    onClose={() => setDetailsFile(null)}
+  />
+)}
     </main>
   );
 }

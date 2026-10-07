@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+const BUCKET_NAME = "user-files";
 import { createNotification } from "./notifications";
 
 export async function getUserFiles(userId) {
@@ -20,24 +21,35 @@ export async function getUserFiles(userId) {
   return data ?? [];
 }
 
-export async function downloadFile(storagePath) {
+export async function downloadFile(storagePath, fileName = null) {
   if (!storagePath) {
     throw new Error("Storage path is required.");
   }
 
   const { data, error } = await supabase.storage
-    .from("user-files")
-    .createSignedUrl(storagePath, 60);
+    .from(BUCKET_NAME)
+    .download(storagePath);
 
   if (error) {
     throw error;
   }
 
-  if (!data?.signedUrl) {
-    throw new Error("Could not generate download URL.");
-  }
+  const blobUrl = URL.createObjectURL(data);
 
-  window.open(data.signedUrl, "_blank");
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.download =
+    fileName ||
+    storagePath.split("/").pop()?.replace(/^[0-9a-f-]{36}-/, "") ||
+    "download";
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(() => {
+    URL.revokeObjectURL(blobUrl);
+  }, 1000);
 }
 
 export async function getPreviewUrl(storagePath) {

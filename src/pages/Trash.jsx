@@ -21,6 +21,8 @@ import {
   permanentlyDeleteFolder,
 } from "../services/folders";
 
+import NovaLoader from "../components/NovaLoader";
+
 function Trash() {
   const { user } = useAuth();
 
@@ -195,9 +197,7 @@ setFolders(folderData);
       )}
 
       {loading ? (
-  <div className="page-placeholder">
-    <p>Loading trash...</p>
-  </div>
+  <NovaLoader message="Loading trash..." />
 ) : files.length === 0 && folders.length === 0 ? (
         <div className="page-placeholder trash-empty">
           <Trash2 size={34} />

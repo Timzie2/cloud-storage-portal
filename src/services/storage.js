@@ -2,14 +2,17 @@ import { supabase } from "./supabase";
 
 const BUCKET_NAME = "user-files";
 
-export async function uploadFile(file, userId) {
+export async function uploadFile(file, userId, folderId = null) {
   if (!file || !userId) {
     throw new Error("File and user are required.");
   }
 
   const fileId = crypto.randomUUID();
 
-  const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const safeFileName = file.name.replace(
+    /[^a-zA-Z0-9._-]/g,
+    "_"
+  );
 
   const storagePath = `${userId}/${fileId}-${safeFileName}`;
 
@@ -17,7 +20,8 @@ export async function uploadFile(file, userId) {
   const { error: uploadError } = await supabase.storage
     .from(BUCKET_NAME)
     .upload(storagePath, file, {
-      contentType: file.type || "application/octet-stream",
+      contentType:
+        file.type || "application/octet-stream",
       upsert: false,
     });
 
@@ -34,6 +38,7 @@ export async function uploadFile(file, userId) {
       storage_path: storagePath,
       mime_type: file.type || null,
       size_bytes: file.size,
+      folder_id: folderId,
     })
     .select()
     .single();
