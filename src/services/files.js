@@ -312,3 +312,241 @@ export async function moveFile(fileId, folderId) {
 
   return data;
 }
+
+
+export async function toggleFavorite(fileId, isFavorite) {
+  if (!fileId) {
+    throw new Error("File ID is required.");
+  }
+
+  const { data, error } = await supabase
+    .from("files")
+    .update({ is_favorite: isFavorite })
+    .eq("id", fileId)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getFavoriteFiles(userId) {
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
+
+  const { data, error } = await supabase
+    .from("files")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_favorite", true)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? [];
+}
+
+
+export async function makeFileCopy(file, userId, destinationFolderId = null) {
+  if (!file?.id || !file?.storage_path || !userId) {
+    throw new Error("File and user information are required.");
+  }
+
+  if (file.user_id !== userId) {
+    throw new Error("You can only copy your own files.");
+  }
+
+  // Check available storage before copying.
+  const { getStorageQuota } = await import("./storageQuota");
+  const quota = await getStorageQuota(userId);
+  const fileSize = Number(file.size_bytes) || 0;
+
+  if (quota.isFull || fileSize > quota.storageLimit - quota.storageUsed) {
+    throw new Error("Not enough storage space to copy this file.");
+  }
+
+  // Generate a unique name while preserving the extension.
+  const lastDot = file.name.lastIndexOf(".");
+  const hasExtension = lastDot > 0;
+  const baseName = hasExtension
+    ? file.name.slice(0, lastDot)
+    : file.name;
+  const extension = hasExtension
+    ? file.name.slice(lastDot)
+    : "";
+
+  const copyName = `${baseName} (copy)${extension}`;
+  const newId = crypto.randomUUID();
+  const newStoragePath = `${userId}/${newId}-${copyName}`;
+
+  // Duplicate the actual file inside Supabase Storage.
+  const { error: copyError } = await supabase.storage
+    .from(BUCKET_NAME)
+    .copy(file.storage_path, newStoragePath);
+
+  if (copyError) throw copyError;
+
+  try {
+    // Register the duplicate as a separate file.
+    const { data, error } = await supabase
+      .from("files")
+      .insert({
+        user_id: userId,
+        name: copyName,
+        storage_path: newStoragePath,
+        mime_type: file.mime_type,
+        size_bytes: fileSize,
+        folder_id: destinationFolderId ?? null,
+        is_favorite: false,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    try {
+      await createNotification({
+        userId,
+        type: "file_copied",
+        title: "File copied",
+        message: `"${file.name}" was copied as "${copyName}".`,
+        relatedFileId: data.id,
+      });
+    } catch (notificationError) {
+      console.error("Could not create copy notification:", notificationError);
+    }
+
+    return data;
+  } catch (error) {
+    // Remove the Storage copy if the database insert fails.
+    const { error: cleanupError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([newStoragePath]);
+
+    if (cleanupError) {
+      console.error("Could not clean up failed file copy:", cleanupError);
+    }
+
+    throw error;
+  }
+}
+
+
+export async function copySharedFile(file, userId, destinationFolderId = null) {
+  if (!file?.id || !file?.storage_path || !userId) {
+    throw new Error("File and user information are required.");
+  }
+
+  if (file.user_id === userId) {
+    throw new Error("Use makeFileCopy for files you own.");
+  }
+
+  const { getStorageQuota } = await import("./storageQuota");
+  const quota = await getStorageQuota(userId);
+  const fileSize = Number(file.size_bytes) || 0;
+
+  if (
+    quota.isFull ||
+    fileSize > quota.storageLimit - quota.storageUsed
+  ) {
+    throw new Error("Not enough storage space to copy this file.");
+  }
+
+  const lastDot = file.name.lastIndexOf(".");
+  const hasExtension = lastDot > 0;
+  const baseName = hasExtension
+    ? file.name.slice(0, lastDot)
+    : file.name;
+  const extension = hasExtension
+    ? file.name.slice(lastDot)
+    : "";
+
+  const copyName = `${baseName} (copy)${extension}`;
+  const newId = crypto.randomUUID();
+  const newStoragePath = `${userId}/${newId}-${copyName}`;
+
+  // Download through the current user's permitted access.
+  const { data: blob, error: downloadError } = await supabase.storage
+    .from(BUCKET_NAME)
+    .download(file.storage_path);
+
+  if (downloadError) throw downloadError;
+
+  // Upload a separate copy into the recipient's storage path.
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(newStoragePath, blob, {
+      contentType: file.mime_type || "application/octet-stream",
+      upsert: false,
+    });
+
+  if (uploadError) throw uploadError;
+
+  try {
+    const { data, error } = await supabase
+      .from("files")
+      .insert({
+        user_id: userId,
+        name: copyName,
+        storage_path: newStoragePath,
+        mime_type: file.mime_type,
+        size_bytes: fileSize,
+        folder_id: destinationFolderId ?? null,
+        is_favorite: false,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    try {
+      await createNotification({
+        userId,
+        type: "file_copied",
+        title: "File copied",
+        message: `"${file.name}" was copied as "${copyName}".`,
+        relatedFileId: data.id,
+      });
+    } catch (notificationError) {
+      console.error("Could not create copy notification:", notificationError);
+    }
+
+    return data;
+  } catch (error) {
+    const { error: cleanupError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([newStoragePath]);
+
+    if (cleanupError) {
+      console.error("Could not clean up failed file copy:", cleanupError);
+    }
+
+    throw error;
+  }
+}
+
+
+
+export async function getFilesInFolder(folderId) {
+  if (!folderId) {
+    throw new Error("Folder ID is required.");
+  }
+
+  const { data, error } = await supabase
+    .from("files")
+    .select("*")
+    .eq("folder_id", folderId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return data ?? [];
+}

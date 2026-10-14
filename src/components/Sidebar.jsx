@@ -6,6 +6,7 @@ import {
   Clock3,
   Trash2,
   Settings,
+  Star,
 } from "lucide-react";
 
 import { NavLink } from "react-router-dom";
@@ -31,12 +32,13 @@ function Sidebar() {
   const [storageQuota, setStorageQuota] = useState(null);
 
   const navItems = [
-    { to: "/", label: "Home", icon: Home },
-    { to: "/files", label: "My Files", icon: Folder },
-    { to: "/shared", label: "Shared", icon: Share2 },
-    { to: "/recent", label: "Recent", icon: Clock3 },
-    { to: "/trash", label: "Trash", icon: Trash2 },
-  ];
+  { to: "/", label: "Home", icon: Home },
+  { to: "/files", label: "My Files", icon: Folder },
+  { to: "/favorites", label: "Favorites", icon: Star },
+  { to: "/shared", label: "Shared", icon: Share2 },
+  { to: "/recent", label: "Recent", icon: Clock3 },
+  { to: "/trash", label: "Trash", icon: Trash2 },
+];
 
   useEffect(() => {
     if (!user) {

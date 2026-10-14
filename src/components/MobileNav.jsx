@@ -1,35 +1,45 @@
+
 import {
   Home,
   Folder,
   Share2,
   Trash2,
+  Star,
 } from "lucide-react";
+
 
 import { NavLink } from "react-router-dom";
 
 function MobileNav() {
-  const navItems = [
-    {
-      to: "/",
-      label: "Home",
-      icon: Home,
-    },
-    {
-      to: "/files",
-      label: "Files",
-      icon: Folder,
-    },
-    {
-      to: "/shared",
-      label: "Shared",
-      icon: Share2,
-    },
-    {
-      to: "/trash",
-      label: "Trash",
-      icon: Trash2,
-    },
-  ];
+  
+const navItems = [
+  {
+    to: "/",
+    label: "Home",
+    icon: Home,
+  },
+  {
+    to: "/files",
+    label: "Files",
+    icon: Folder,
+  },
+  {
+    to: "/favorites",
+    label: "Favorites",
+    icon: Star,
+  },
+  {
+    to: "/shared",
+    label: "Shared",
+    icon: Share2,
+  },
+  {
+    to: "/trash",
+    label: "Trash",
+    icon: Trash2,
+  },
+];
+
 
   return (
     <nav className="mobile-nav">

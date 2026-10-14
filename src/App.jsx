@@ -9,6 +9,7 @@ import Recent from "./pages/Recent";
 import Trash from "./pages/Trash";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
+import Favorites from "./pages/Favorites";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -48,6 +49,7 @@ function AppContent() {
             <Route path="/trash" element={<Trash />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/favorites" element={<Favorites />} />
           </Routes>
         </AppLayout>
       ) : (

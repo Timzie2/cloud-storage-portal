@@ -523,6 +523,13 @@ return (
     )
   );
 }}
+
+onFileCopied={(copiedFile) => {
+  setFiles((currentFiles) => [
+    copiedFile,
+    ...currentFiles.filter((file) => file.id !== copiedFile.id),
+  ]);
+}}
             onViewAll={() => navigate("/files")}
           />
         )}

@@ -12,6 +12,8 @@ import {
   Share2,
   Folder,
   Pencil,
+  Star,
+  Copy,
 } from "lucide-react";
 
 import {
@@ -19,6 +21,8 @@ import {
   deleteFile,
   getPreviewUrl,
   moveFile,
+  toggleFavorite,
+  makeFileCopy,
 } from "../services/files";
 
 import { useAuth } from "../context/AuthContext";
@@ -78,6 +82,7 @@ function RecentFiles({
   files = [],
   onFileDeleted,
   onFileUpdated,
+  onFileCopied,
   onViewAll,
 }) {
   const { user } = useAuth();
@@ -97,6 +102,8 @@ const [moveFileData, setMoveFileData] = useState(null);
 const [folders, setFolders] = useState([]);
 const [loadingFolders, setLoadingFolders] = useState(false);
 const [movingFile, setMovingFile] = useState(false);
+const [copyFileData, setCopyFileData] = useState(null);
+const [copyingToFolder, setCopyingToFolder] = useState(false);
 
 const [previewFile, setPreviewFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -134,90 +141,72 @@ const [previewFile, setPreviewFile] = useState(null);
     };
   }, []);
 
-  // Close menu when screen is resized or scrolled
-  useEffect(() => {
-    const closeMenu = () => {
-      setOpenMenu(null);
-      setMenuPosition(null);
-    };
+  
+useEffect(() => {
+  if (!openMenu) return;
 
-    window.addEventListener("resize", closeMenu);
-    window.addEventListener(
-      "scroll",
-      closeMenu,
-      true
-    );
+  const updateMenuPosition = () => {
+    if (!activeButtonRef.current) return;
 
-    return () => {
-      window.removeEventListener(
-        "resize",
-        closeMenu
-      );
+    const rect = activeButtonRef.current.getBoundingClientRect();
 
-      window.removeEventListener(
-        "scroll",
-        closeMenu,
-        true
-      );
-    };
-  }, []);
-
-  const handleMenuToggle = (fileId, event) => {
-    if (openMenu === fileId) {
-      setOpenMenu(null);
-      setMenuPosition(null);
-      return;
-    }
-
-    const button = event.currentTarget;
-    const rect = button.getBoundingClientRect();
-
-    const menuWidth = 150;
-    const menuHeight = 66;
+    const menuWidth = 220;
     const gap = 6;
     const screenPadding = 8;
 
-    let left = rect.right - menuWidth;
+    const menuHeight = menuRef.current?.offsetHeight || 320;
 
-    if (left < screenPadding) {
-      left = screenPadding;
-    }
+    let left = rect.right - menuWidth + 40;
 
-    if (
-      left + menuWidth >
-      window.innerWidth - screenPadding
-    ) {
-      left =
-        window.innerWidth -
-        menuWidth -
-        screenPadding;
-    }
+    left = Math.max(
+      screenPadding,
+      Math.min(left, window.innerWidth - menuWidth - screenPadding)
+    );
 
-    const spaceBelow =
-      window.innerHeight - rect.bottom;
-
+    const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
 
     let top;
 
-    if (
-      spaceBelow >= menuHeight + gap ||
-      spaceBelow >= spaceAbove
-    ) {
+    if (spaceBelow >= menuHeight + gap) {
       top = rect.bottom + gap;
-    } else {
+    } else if (spaceAbove >= menuHeight + gap) {
       top = rect.top - menuHeight - gap;
+    } else {
+      top = Math.max(
+        screenPadding,
+        window.innerHeight - menuHeight - screenPadding
+      );
     }
 
-    activeButtonRef.current = button;
-
-    setMenuPosition({
-      top,
-      left,
-    });
-
-    setOpenMenu(fileId);
+    setMenuPosition({ top, left });
   };
+
+  updateMenuPosition();
+
+  window.addEventListener("resize", updateMenuPosition);
+  window.addEventListener("scroll", updateMenuPosition, true);
+
+  return () => {
+    window.removeEventListener("resize", updateMenuPosition);
+    window.removeEventListener("scroll", updateMenuPosition, true);
+  };
+}, [openMenu]);
+
+
+const handleMenuToggle = (fileId, event) => {
+  if (openMenu === fileId) {
+    setOpenMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
+    return;
+  }
+
+  activeButtonRef.current = event.currentTarget;
+  setOpenMenu(fileId);
+  setMenuPosition(null);
+};
+
 
   const handlePreview = async (file) => {
     try {
@@ -255,6 +244,26 @@ const [previewFile, setPreviewFile] = useState(null);
 
   setShareFileData(file);
 };
+
+
+const handleToggleFavorite = async (file) => {
+  try {
+    const updatedFile = await toggleFavorite(
+      file.id,
+      !file.is_favorite
+    );
+
+    onFileCopied?.(copiedFile);
+
+    setOpenMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
+  } catch (error) {
+    console.error("Favorite update error:", error);
+    alert("Could not update favorite status. Please try again.");
+  }
+};
+
 
 const closeShare = () => {
   setShareFileData(null);
@@ -368,6 +377,33 @@ const handleMoveOpen = async (file) => {
   }
 };
 
+
+const handleCopyOpen = async (file) => {
+  setOpenMenu(null);
+  setMenuPosition(null);
+  activeButtonRef.current = null;
+
+  setCopyFileData(file);
+  setFolders([]);
+  setLoadingFolders(true);
+
+  try {
+    if (!user?.id) {
+      throw new Error("User is not authenticated.");
+    }
+
+    const data = await getUserFolders(user.id);
+    setFolders(data || []);
+  } catch (error) {
+    console.error("Load folders for copy error:", error);
+    alert("Could not load your folders.");
+    setCopyFileData(null);
+  } finally {
+    setLoadingFolders(false);
+  }
+};
+
+
 const handleMove = async (folderId) => {
   if (!moveFileData) return;
 
@@ -391,6 +427,34 @@ const handleMove = async (folderId) => {
     setMovingFile(false);
   }
 };
+
+
+const handleCopyToFolder = async (folderId) => {
+  if (!copyFileData || !user?.id) return;
+
+  setCopyingToFolder(true);
+
+  try {
+    const copiedFile = await makeFileCopy(
+      copyFileData,
+      user.id,
+      folderId
+    );
+
+    // Notify the dashboard that a file was copied.
+    onFileUpdated?.(copiedFile);
+
+    setCopyFileData(null);
+  } catch (error) {
+    console.error("Copy file error:", error);
+    alert(
+      error.message || "Could not copy the file. Please try again."
+    );
+  } finally {
+    setCopyingToFolder(false);
+  }
+};
+
 
   const handleDelete = async (file) => {
     const confirmed = window.confirm(
@@ -492,13 +556,10 @@ const handleMove = async (folderId) => {
                   className="file-more"
                   aria-label={`Actions for ${file.name}`}
                   onClick={(event) => {
-                    event.stopPropagation();
-
-                    handleMenuToggle(
-                      file.id,
-                      event
-                    );
-                  }}
+  event.stopPropagation();
+  activeButtonRef.current = event.currentTarget;
+  handleMenuToggle(file.id, event);
+}}
                   disabled={
                     deletingFile === file.id
                   }
@@ -520,7 +581,42 @@ const handleMove = async (folderId) => {
       {/* Floating file menu */}
       {openMenu && menuPosition && (
         <div
-          ref={menuRef}
+          ref={(element) => {
+  menuRef.current = element;
+
+  if (!element || !menuPosition || menuPosition.menuHeight) return;
+
+  const height = element.getBoundingClientRect().height;
+  const gap = 6;
+  const padding = 8;
+
+  const spaceBelow = window.innerHeight - menuPosition.buttonBottom;
+  const spaceAbove = menuPosition.buttonTop;
+
+  let top;
+
+  if (spaceBelow >= height + gap) {
+    top = menuPosition.buttonBottom + gap;
+  } else if (spaceAbove >= height + gap) {
+    top = menuPosition.buttonTop - height - gap;
+  } else {
+    top = Math.max(
+      padding,
+      Math.min(
+        menuPosition.buttonBottom + gap,
+        window.innerHeight - height - padding
+      )
+    );
+  }
+
+  if (top !== menuPosition.top || height !== menuPosition.menuHeight) {
+    setMenuPosition((current) =>
+      current && !current.menuHeight
+        ? { ...current, top, menuHeight: height }
+        : current
+    );
+  }
+}}
           className="file-menu file-menu-floating"
           style={{
             top: `${menuPosition.top}px`,
@@ -545,6 +641,16 @@ const handleMove = async (folderId) => {
   Download
 </button>
 
+
+<button
+  type="button"
+  onClick={() => handleCopyOpen(file)}
+>
+  <Copy size={16} />
+  Make a copy
+</button>
+
+
 <button
   type="button"
   onClick={() => handleShare(file)}
@@ -560,6 +666,21 @@ const handleMove = async (folderId) => {
   <Pencil size={16} />
   Rename
 </button>
+
+
+<button
+  type="button"
+  onClick={() => handleToggleFavorite(file)}
+>
+  <Star
+    size={16}
+    fill={file.is_favorite ? "currentColor" : "none"}
+  />
+  {file.is_favorite
+    ? "Remove from Favorites"
+    : "Add to Favorites"}
+</button>
+
 
 <button
   type="button"
@@ -841,6 +962,107 @@ const handleMove = async (folderId) => {
     </div>
   </div>
 )}
+
+
+{copyFileData && (
+  <div
+    className="folder-modal-overlay"
+    onMouseDown={(event) => {
+      if (
+        event.target === event.currentTarget &&
+        !copyingToFolder
+      ) {
+        setCopyFileData(null);
+      }
+    }}
+  >
+    <div
+      className="folder-modal move-folder-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="recent-copy-folder-title"
+    >
+      <div className="folder-modal-header">
+        <div>
+          <p className="folder-modal-eyebrow">
+            MAKE A COPY
+          </p>
+
+          <h2 id="recent-copy-folder-title">
+            Copy to folder
+          </h2>
+
+          <p className="folder-modal-subtitle">
+            Choose where to save the copy of{" "}
+            {copyFileData.name}.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="folder-modal-close"
+          onClick={() => setCopyFileData(null)}
+          disabled={copyingToFolder}
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="move-folder-list">
+        <button
+          type="button"
+          className="move-folder-option"
+          onClick={() => handleCopyToFolder(null)}
+          disabled={copyingToFolder}
+        >
+          <Folder size={20} />
+          <div>
+            <strong>My Files</strong>
+            <span>Root folder</span>
+          </div>
+        </button>
+
+        {loadingFolders ? (
+          <div className="move-folder-loading">
+            Loading folders...
+          </div>
+        ) : folders.length === 0 ? (
+          <p className="move-folder-empty">
+            You don't have any folders yet.
+          </p>
+        ) : (
+          folders.map((folder) => (
+            <button
+              key={folder.id}
+              type="button"
+              className="move-folder-option"
+              onClick={() => handleCopyToFolder(folder.id)}
+              disabled={copyingToFolder}
+            >
+              <Folder size={20} />
+              <div>
+                <strong>{folder.name}</strong>
+                <span>
+                  {folder.id === copyFileData.folder_id
+                    ? "Copy alongside original"
+                    : "Folder"}
+                </span>
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+
+      {copyingToFolder && (
+        <p className="move-folder-loading">
+          Creating copy...
+        </p>
+      )}
+    </div>
+  </div>
+)}
+
 
 {shareFileData && (
   <ShareFileModal

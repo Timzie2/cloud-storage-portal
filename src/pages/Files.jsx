@@ -1,5 +1,7 @@
 import NovaLoader from "../components/NovaLoader";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+
 import {
   Search,
   Grid2X2,
@@ -18,7 +20,15 @@ import {
   Folder,
   Pencil,
   Plus,
+  Star,
+  Copy,
+  CheckSquare,
+  Square,
+  X,
+  Ellipsis,
+  Info,
 } from "lucide-react";
+
 
 import { useAuth } from "../context/AuthContext";
 import {
@@ -28,6 +38,8 @@ import {
   getPreviewUrl,
   shareFile,
   moveFile,
+  toggleFavorite,
+  makeFileCopy,
 } from "../services/files";
 
 import { supabase } from "../services/supabase";
@@ -36,12 +48,18 @@ import FilePreviewModal from "../components/FilePreviewModal";
 import UploadCard from "../components/UploadCard";
 import ShareFileModal from "../components/ShareFileModal";
 import FileDetailsModal from "../components/FileDetailsModal";
+import ShareFolderModal from "../components/ShareFolderModal";
+
 
 import {
   getUserFolders,
   createFolder,
+  renameFolder,
   deleteFolder,
+  copyFolder,
+  moveFolder,
 } from "../services/folders";
+
 
 function getFileIcon(mimeType) {
   if (!mimeType) return <File size={20} />;
@@ -117,6 +135,11 @@ function Files() {
   const { user } = useAuth();
 
   const [files, setFiles] = useState([]);
+  const [selectedFileIds, setSelectedFileIds] = useState([]);
+  const [selectedFolderIds, setSelectedFolderIds] = useState([]);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [bulkMoveMode, setBulkMoveMode] = useState(false);
+  const [bulkCopyMode, setBulkCopyMode] = useState(false);
   const [loading, setLoading] = useState(true);
   
   const [folders, setFolders] = useState([]);
@@ -126,6 +149,9 @@ function Files() {
   const [folderName, setFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [currentFolderId, setCurrentFolderId] = useState(null);
+  const [openFolderMenu, setOpenFolderMenu] = useState(null);
+  const [folderMenuPosition, setFolderMenuPosition] = useState(null);
+  
 
   
 
@@ -143,11 +169,28 @@ function Files() {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [detailsFile, setDetailsFile] = useState(null);
+  const [copyingFile, setCopyingFile] = useState(null);
+  const [showCopyFoldersModal, setShowCopyFoldersModal] = useState(false);
+  const [folderCopyDestination, setFolderCopyDestination] = useState("");
+  const [showMoveFoldersModal, setShowMoveFoldersModal] = useState(false);
+  const [folderMoveDestination, setFolderMoveDestination] = useState("");
+  const [fileMoveDestination, setFileMoveDestination] = useState("");
+  const [fileCopyDestination, setFileCopyDestination] = useState("");
+  const [renameFolderData, setRenameFolderData] = useState(null);
+  const [renameFolderName, setRenameFolderName] = useState("");
+  const [renamingFolder, setRenamingFolder] = useState(false);
+  const [folderDetailsData, setFolderDetailsData] = useState(null);
+  const [shareFolderData, setShareFolderData] = useState(null);
+  const [shareFolderEmail, setShareFolderEmail] = useState("");
+  const [sharingFolder, setSharingFolder] = useState(false);
+
 
   const [shareFileData, setShareFileData] = useState(null);
 
   const [moveFileData, setMoveFileData] = useState(null);
   const [movingFile, setMovingFile] = useState(false);
+  const [copyFileData, setCopyFileData] = useState(null);
+  const [copyingToFolder, setCopyingToFolder] = useState(false);
   const [renameFileData, setRenameFileData] = useState(null);
   const [renameFileName, setRenameFileName] = useState("");
   const [renameFileExtension, setRenameFileExtension] = useState("");
@@ -179,6 +222,29 @@ useEffect(() => {
   loadFilesAndFolders();
 }, [user]);
 
+// Close the folder menu when clicking anywhere outside it.
+
+useEffect(() => {
+  if (!openFolderMenu) return;
+
+  const handleFolderOutsideClick = (event) => {
+    if (
+      !event.target.closest(".folder-card-actions") &&
+      !event.target.closest(".folder-actions-menu")
+    ) {
+      setOpenFolderMenu(null);
+      setFolderMenuPosition(null);
+    }
+  };
+
+  document.addEventListener("mousedown", handleFolderOutsideClick);
+
+  return () => {
+    document.removeEventListener("mousedown", handleFolderOutsideClick);
+  };
+}, [openFolderMenu]);
+
+
   /*
    * Close the file menu when clicking outside it.
    */
@@ -201,6 +267,53 @@ useEffect(() => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, []);
+
+  
+useEffect(() => {
+  if (!openFolderMenu) return;
+
+  const updateFolderMenuPosition = () => {
+    const button = document.querySelector(
+      `[data-folder-menu-trigger="${openFolderMenu}"]`
+    );
+
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const menuWidth = 190;
+    const menuHeight = 150;
+    const gap = 6;
+    const padding = 12;
+
+    let left = rect.right - menuWidth;
+    let top = rect.bottom + gap;
+
+    if (top + menuHeight > window.innerHeight - padding) {
+      top = rect.top - menuHeight - gap;
+    }
+
+    left = Math.max(
+      padding,
+      Math.min(left, window.innerWidth - menuWidth - padding)
+    );
+
+    top = Math.max(
+      padding,
+      Math.min(top, window.innerHeight - menuHeight - padding)
+    );
+
+    setFolderMenuPosition({ top, left });
+  };
+
+  window.addEventListener("scroll", updateFolderMenuPosition, true);
+  window.addEventListener("resize", updateFolderMenuPosition);
+
+  return () => {
+    window.removeEventListener("scroll", updateFolderMenuPosition, true);
+    window.removeEventListener("resize", updateFolderMenuPosition);
+  };
+}, [openFolderMenu]);
+
 
   /*
    * Keep the floating menu positioned correctly
@@ -335,6 +448,61 @@ const folderPath = useMemo(() => {
   return path;
 }, [folders, currentFolderId]);
 
+
+const getFolderDisplayPath = (folder) => {
+  const path = [];
+  let current = folder;
+
+  while (current) {
+    path.unshift(current.name);
+
+    current = current.parent_id
+      ? folders.find((item) => item.id === current.parent_id)
+      : null;
+  }
+
+  return path.join(" / ");
+};
+
+
+const selectedFiles = visibleFiles.filter((file) =>
+  selectedFileIds.includes(file.id)
+);
+
+const allVisibleSelected =
+  visibleFiles.length > 0 &&
+  visibleFiles.every((file) =>
+    selectedFileIds.includes(file.id)
+  );
+
+const toggleFileSelection = (fileId) => {
+  setSelectedFileIds((current) =>
+    current.includes(fileId)
+      ? current.filter((id) => id !== fileId)
+      : [...current, fileId]
+  );
+};
+
+const toggleSelectAll = () => {
+  setSelectedFileIds((current) => {
+    if (allVisibleSelected) {
+      return current.filter(
+        (id) => !visibleFiles.some((file) => file.id === id)
+      );
+    }
+
+    const next = new Set(current);
+
+    visibleFiles.forEach((file) => next.add(file.id));
+
+    return [...next];
+  });
+};
+
+const clearSelection = () => {
+  setSelectedFileIds([]);
+};
+
   const handleMenuToggle = (file, event) => {
     if (openMenu === file.id) {
       setOpenMenu(null);
@@ -348,6 +516,45 @@ const folderPath = useMemo(() => {
     setOpenMenu(file.id);
     setMenuPosition(null);
   };
+
+  const toggleFolderSelection = (folderId) => {
+  setSelectedFolderIds((current) =>
+    current.includes(folderId)
+      ? current.filter((id) => id !== folderId)
+      : [...current, folderId]
+  );
+};
+
+const visibleFolders = folders.filter(
+  (folder) => folder.parent_id === currentFolderId
+);
+
+const allVisibleFoldersSelected =
+  visibleFolders.length > 0 &&
+  visibleFolders.every((folder) =>
+    selectedFolderIds.includes(folder.id)
+  );
+
+const toggleSelectAllFolders = () => {
+  if (allVisibleFoldersSelected) {
+    setSelectedFolderIds((current) =>
+      current.filter(
+        (id) => !visibleFolders.some((folder) => folder.id === id)
+      )
+    );
+  } else {
+    setSelectedFolderIds((current) => [
+      ...new Set([
+        ...current,
+        ...visibleFolders.map((folder) => folder.id),
+      ]),
+    ]);
+  }
+};
+
+const clearFolderSelection = () => {
+  setSelectedFolderIds([]);
+};
 
   const handlePreview = async (file) => {
     try {
@@ -381,13 +588,67 @@ const folderPath = useMemo(() => {
   setShareFileData(file);
 };
 
+
+const handleToggleFavorite = async (file) => {
+  try {
+    const updatedFile = await toggleFavorite(
+      file.id,
+      !file.is_favorite
+    );
+
+    setFiles((currentFiles) =>
+      currentFiles.map((item) =>
+        item.id === updatedFile.id ? updatedFile : item
+      )
+    );
+
+    setOpenMenu(null);
+    setMenuPosition(null);
+    activeButtonRef.current = null;
+  } catch (error) {
+    console.error("Favorite update error:", error);
+    alert("Could not update favorite status. Please try again.");
+  }
+};
+
+
+
 const handleMoveOpen = (file) => {
   setOpenMenu(null);
   setMenuPosition(null);
   activeButtonRef.current = null;
-
+  setBulkMoveMode(false);
+  setFileMoveDestination(file.folder_id ?? "");
   setMoveFileData(file);
 };
+
+const handleMakeCopy = (file) => {
+  setOpenMenu(null);
+  setMenuPosition(null);
+  activeButtonRef.current = null;
+  setBulkCopyMode(false);
+  setFileCopyDestination("");
+  setCopyFileData(file);
+};
+
+const handleBulkMoveOpen = () => {
+  if (!selectedFiles.length) return;
+
+  setOpenMenu(null);
+  setMenuPosition(null);
+  setBulkMoveMode(true);
+  setMoveFileData(selectedFiles[0]);
+};
+
+const handleBulkCopyOpen = () => {
+  if (!selectedFiles.length) return;
+
+  setOpenMenu(null);
+  setMenuPosition(null);
+  setBulkCopyMode(true);
+  setCopyFileData(selectedFiles[0]);
+};
+
 
 const handleRenameOpen = (file) => {
   setOpenMenu(null);
@@ -455,31 +716,96 @@ const closeShare = () => {
   setShareFileData(null);
 };
 
+
 const handleMove = async (folderId) => {
   if (!moveFileData) return;
 
+  const filesToMove = bulkMoveMode
+    ? [...selectedFiles]
+    : [moveFileData];
+
+  if (!filesToMove.length) return;
+
   setMovingFile(true);
+  const successfulIds = [];
 
   try {
-    const updatedFile = await moveFile(
-      moveFileData.id,
-      folderId
-    );
+    for (const file of filesToMove) {
+      try {
+        await moveFile(file.id, folderId);
+        successfulIds.push(file.id);
+      } catch (error) {
+        console.error(`Could not move ${file.name}:`, error);
+      }
+    }
 
-    setFiles((currentFiles) =>
-      currentFiles.map((file) =>
-        file.id === updatedFile.id ? updatedFile : file
-      )
-    );
+    if (successfulIds.length > 0) {
+      await loadFilesAndFolders();
+
+      if (bulkMoveMode) {
+        setSelectedFileIds((current) =>
+          current.filter((id) => !successfulIds.includes(id))
+        );
+      }
+    }
+
+    if (successfulIds.length !== filesToMove.length) {
+      alert(
+        `${successfulIds.length} of ${filesToMove.length} files moved successfully.`
+      );
+    }
 
     setMoveFileData(null);
-  } catch (error) {
-    console.error("Move file error:", error);
-    alert("Could not move the file. Please try again.");
+    setBulkMoveMode(false);
   } finally {
     setMovingFile(false);
   }
 };
+
+const handleCopyToFolder = async (folderId) => {
+  if (!copyFileData || !user?.id) return;
+
+  const filesToCopy = bulkCopyMode
+    ? [...selectedFiles]
+    : [copyFileData];
+
+  if (!filesToCopy.length) return;
+
+  setCopyingToFolder(true);
+  let successfulCount = 0;
+
+  try {
+    for (const file of filesToCopy) {
+      try {
+        await makeFileCopy(file, user.id, folderId);
+        successfulCount++;
+      } catch (error) {
+        console.error(`Could not copy ${file.name}:`, error);
+      }
+    }
+
+    if (successfulCount > 0) {
+      await loadFilesAndFolders();
+
+      if (bulkCopyMode) {
+        setSelectedFileIds([]);
+      }
+    }
+
+    if (successfulCount !== filesToCopy.length) {
+      alert(
+        `${successfulCount} of ${filesToCopy.length} files copied successfully.`
+      );
+    }
+
+    setCopyFileData(null);
+    setBulkCopyMode(false);
+  } finally {
+    setCopyingToFolder(false);
+  }
+};
+
+
 
 const handleCreateFolder = async (event) => {
   event.preventDefault();
@@ -503,6 +829,49 @@ const handleCreateFolder = async (event) => {
     alert("Could not create the folder. Please try again.");
   } finally {
     setCreatingFolder(false);
+  }
+};
+
+const handleRenameFolder = async (event) => {
+  event.preventDefault();
+
+  if (
+    !renameFolderData ||
+    !user?.id ||
+    !renameFolderName.trim() ||
+    renamingFolder
+  ) {
+    return;
+  }
+
+  const newName = renameFolderName.trim();
+
+  if (newName === renameFolderData.name) {
+    setRenameFolderData(null);
+    setRenameFolderName("");
+    return;
+  }
+
+  setRenamingFolder(true);
+
+  try {
+    await renameFolder(renameFolderData.id, newName);
+
+    setFolders((currentFolders) =>
+      currentFolders.map((folder) =>
+        folder.id === renameFolderData.id
+          ? { ...folder, name: newName }
+          : folder
+      )
+    );
+
+    setRenameFolderData(null);
+    setRenameFolderName("");
+  } catch (error) {
+    console.error("Rename folder error:", error);
+    alert("Could not rename the folder. Please try again.");
+  } finally {
+    setRenamingFolder(false);
   }
 };
 
@@ -549,6 +918,168 @@ const handleDeleteFolder = async (folder) => {
   }
 };
 
+const handleBulkDeleteFolders = async () => {
+  const foldersToDelete = visibleFolders.filter((folder) =>
+    selectedFolderIds.includes(folder.id)
+  );
+
+  if (foldersToDelete.length === 0) return;
+
+  const confirmed = window.confirm(
+    `Move ${foldersToDelete.length} selected folder(s) and their nested folders to Trash?`
+  );
+
+  if (!confirmed) return;
+
+  setBulkActionLoading(true);
+
+  const successfulIds = [];
+  const failedNames = [];
+
+  try {
+    for (const folder of foldersToDelete) {
+      try {
+        await deleteFolder(folder.id);
+        successfulIds.push(folder.id);
+      } catch (error) {
+        console.error(`Could not delete folder ${folder.name}:`, error);
+        failedNames.push(folder.name);
+      }
+    }
+
+    setSelectedFolderIds([]);
+
+    await loadFilesAndFolders();
+
+    if (failedNames.length > 0) {
+      alert(
+        `Some folders could not be moved to Trash: ${failedNames.join(", ")}`
+      );
+    } else if (successfulIds.length > 0) {
+      alert("Selected folders moved to Trash successfully.");
+    }
+  } finally {
+    setBulkActionLoading(false);
+  }
+};
+
+
+
+const handleBulkCopyFolders = () => {
+  const foldersToCopy = visibleFolders.filter((folder) =>
+    selectedFolderIds.includes(folder.id)
+  );
+
+  if (foldersToCopy.length === 0) return;
+
+  setFolderCopyDestination("");
+  setShowCopyFoldersModal(true);
+};
+
+const handleConfirmBulkCopyFolders = async () => {
+  const foldersToCopy = visibleFolders.filter((folder) =>
+    selectedFolderIds.includes(folder.id)
+  );
+
+  if (foldersToCopy.length === 0 || bulkActionLoading) return;
+
+  setBulkActionLoading(true);
+
+  const successfulFolders = [];
+  const failedFolders = [];
+
+  try {
+    for (const folder of foldersToCopy) {
+      try {
+        await copyFolder(
+          folder.id,
+          user.id,
+          folderCopyDestination || null
+        );
+
+        successfulFolders.push(folder.name);
+      } catch (error) {
+        console.error(`Could not copy "${folder.name}":`, error);
+        failedFolders.push(folder.name);
+      }
+    }
+
+    setShowCopyFoldersModal(false);
+    setSelectedFolderIds([]);
+    await loadFilesAndFolders();
+
+    if (failedFolders.length > 0) {
+      alert(
+        `Could not fully copy these folders: ${failedFolders.join(", ")}. Check the console for details.`
+      );
+    } else if (successfulFolders.length > 0) {
+      alert("Selected folders copied successfully.");
+    }
+  } finally {
+    setBulkActionLoading(false);
+  }
+};
+
+
+const handleBulkMoveFolders = () => {
+  const foldersToMove = visibleFolders.filter((folder) =>
+    selectedFolderIds.includes(folder.id)
+  );
+
+  if (foldersToMove.length === 0) return;
+
+  setFolderMoveDestination("");
+  setShowMoveFoldersModal(true);
+};
+
+const handleConfirmBulkMoveFolders = async () => {
+  const foldersToMove = visibleFolders.filter((folder) =>
+    selectedFolderIds.includes(folder.id)
+  );
+
+  if (foldersToMove.length === 0 || bulkActionLoading) return;
+
+  setBulkActionLoading(true);
+
+  const successfulIds = [];
+  const failedNames = [];
+
+  try {
+    for (const folder of foldersToMove) {
+      try {
+        await moveFolder(
+          folder.id,
+          user.id,
+          folderMoveDestination || null
+        );
+
+        successfulIds.push(folder.id);
+      } catch (error) {
+        console.error(`Could not move "${folder.name}":`, error);
+        failedNames.push(folder.name);
+      }
+    }
+
+    setShowMoveFoldersModal(false);
+    setSelectedFolderIds([]);
+
+    // If we moved the folder currently being viewed, return to My Files.
+    if (currentFolderId && successfulIds.includes(currentFolderId)) {
+      setCurrentFolderId(null);
+    }
+
+    await loadFilesAndFolders();
+
+    if (failedNames.length > 0) {
+      alert(`Some folders could not be moved: ${failedNames.join(", ")}.`);
+    } else if (successfulIds.length > 0) {
+      alert("Selected folders moved successfully.");
+    }
+  } finally {
+    setBulkActionLoading(false);
+  }
+};
+
   const handleDownload = async (file) => {
     try {
       setOpenMenu(null);
@@ -587,6 +1118,49 @@ const handleDeleteFolder = async (folder) => {
       setDeletingFile(null);
     }
   };
+
+  const handleBulkDelete = async () => {
+  if (selectedFiles.length === 0 || bulkActionLoading) return;
+
+  const confirmed = window.confirm(
+    `Move ${selectedFiles.length} selected files to Trash?`
+  );
+
+  if (!confirmed) return;
+
+  setBulkActionLoading(true);
+
+  const successfulIds = [];
+
+  try {
+    for (const file of selectedFiles) {
+      try {
+        await deleteFile(file);
+        successfulIds.push(file.id);
+      } catch (error) {
+        console.error(`Could not delete ${file.name}:`, error);
+      }
+    }
+
+    if (successfulIds.length > 0) {
+      setFiles((current) =>
+        current.filter((file) => !successfulIds.includes(file.id))
+      );
+
+      setSelectedFileIds((current) =>
+        current.filter((id) => !successfulIds.includes(id))
+      );
+    }
+
+    if (successfulIds.length !== selectedFiles.length) {
+      alert(
+        `${successfulIds.length} of ${selectedFiles.length} files moved to Trash. Some files could not be deleted.`
+      );
+    }
+  } finally {
+    setBulkActionLoading(false);
+  }
+};
 
   const closePreview = () => {
     setPreviewFile(null);
@@ -744,6 +1318,70 @@ const handleDeleteFolder = async (folder) => {
           </div>
         </div>
 
+        {visibleFiles.length > 0 && (
+  <div className="bulk-selection-toolbar">
+    <label className="bulk-select-all">
+      <input
+        type="checkbox"
+        checked={allVisibleSelected}
+        onChange={toggleSelectAll}
+        aria-label="Select all visible files"
+      />
+
+      <span>Select all</span>
+    </label>
+
+    {selectedFileIds.length > 0 && (
+      <div className="bulk-selection-actions">
+        <span className="bulk-selection-count">
+          {selectedFileIds.length} selected
+        </span>
+
+        <button
+  type="button"
+  onClick={handleBulkCopyOpen}
+  disabled={bulkActionLoading || movingFile || copyingToFolder}
+  className="bulk-copy-button"
+>
+  <Copy size={16} />
+  Copy
+</button>
+
+<button
+  type="button"
+  onClick={handleBulkMoveOpen}
+  disabled={bulkActionLoading || movingFile || copyingToFolder}
+  className="bulk-move-button"
+>
+  <Folder size={16} />
+  Move
+</button>
+
+        <button
+          type="button"
+          onClick={handleBulkDelete}
+          disabled={bulkActionLoading}
+          className="bulk-delete-button"
+        >
+          <Trash2 size={16} />
+          {bulkActionLoading ? "Deleting..." : "Delete"}
+        </button>
+
+        <button
+          type="button"
+          onClick={clearSelection}
+          disabled={bulkActionLoading}
+          className="bulk-clear-button"
+          aria-label="Clear selection"
+        >
+          <X size={16} />
+          Clear
+        </button>
+      </div>
+    )}
+  </div>
+)}
+
         <div className="files-upload-section">
   <UploadCard
     folderId={currentFolderId}
@@ -758,9 +1396,72 @@ const handleDeleteFolder = async (folder) => {
 ).length > 0 && (
   
   <div className="folders-section">
-    <div className="folders-section-header">
-      <h2>Folders</h2>
+
+<div className="folders-section-header">
+  <h2>Folders</h2>
+
+  {visibleFolders.length > 0 && (
+    <label className="bulk-select-all">
+      <input
+        type="checkbox"
+        checked={allVisibleFoldersSelected}
+        onChange={toggleSelectAllFolders}
+        aria-label="Select all visible folders"
+      />
+      <span>Select all</span>
+    </label>
+  )}
+</div>
+
+{selectedFolderIds.length > 0 && (
+  <div className="bulk-selection-toolbar">
+    <div className="bulk-selection-actions">
+      <span className="bulk-selection-count">
+        {selectedFolderIds.length}{" "}
+        {selectedFolderIds.length === 1 ? "folder" : "folders"} selected
+      </span>
+
+<button
+  type="button"
+  className="bulk-copy-button"
+  onClick={handleBulkCopyFolders}
+  disabled={bulkActionLoading}
+>
+  <Copy size={16} />
+  Copy
+</button>
+
+<button
+  type="button"
+  className="bulk-move-button"
+  onClick={handleBulkMoveFolders}
+  disabled={bulkActionLoading}
+>
+  <Folder size={16} />
+  Move
+</button>
+
+<button
+  type="button"
+  className="bulk-delete-button"
+  onClick={handleBulkDeleteFolders}
+  disabled={bulkActionLoading}
+>
+  <Trash2 size={16} />
+  {bulkActionLoading ? "Deleting..." : "Delete"}
+</button>
+
+      <button
+        type="button"
+        className="bulk-clear-button"
+        onClick={clearFolderSelection}
+      >
+        <X size={16} />
+        Clear
+      </button>
     </div>
+  </div>
+)}
 
     <div className="folders-grid">
       {folders
@@ -772,6 +1473,19 @@ const handleDeleteFolder = async (folder) => {
   key={folder.id}
   className="folder-card"
 >
+
+  <label
+  className="folder-selection-checkbox"
+  onClick={(event) => event.stopPropagation()}
+>
+  <input
+    type="checkbox"
+    checked={selectedFolderIds.includes(folder.id)}
+    onChange={() => toggleFolderSelection(folder.id)}
+    aria-label={`Select folder ${folder.name}`}
+  />
+</label>
+
   <button
     type="button"
     className="folder-card-main"
@@ -782,18 +1496,126 @@ const handleDeleteFolder = async (folder) => {
     <span>{folder.name}</span>
   </button>
 
+  
+<div className="folder-card-actions">
   <button
-    type="button"
-    className="folder-delete-button"
-    title={`Delete ${folder.name}`}
-    aria-label={`Delete ${folder.name}`}
+  type="button"
+  className="folder-menu-button"
+  data-folder-menu-trigger={folder.id}
+    aria-label={`Actions for ${folder.name}`}
+    title="Folder actions"
     onClick={(event) => {
-      event.stopPropagation();
-      handleDeleteFolder(folder);
-    }}
+  event.stopPropagation();
+
+  if (openFolderMenu === folder.id) {
+    setOpenFolderMenu(null);
+    setFolderMenuPosition(null);
+    return;
+  }
+
+  const rect = event.currentTarget.getBoundingClientRect();
+  const menuWidth = 190;
+  const menuHeight = 150;
+  const gap = 6;
+  const padding = 12;
+
+  let left = rect.right - menuWidth;
+  let top = rect.bottom + gap;
+
+  left = Math.max(
+    padding,
+    Math.min(left, window.innerWidth - menuWidth - padding)
+  );
+
+  if (top + menuHeight > window.innerHeight - padding) {
+    top = rect.top - menuHeight - gap;
+  }
+
+  top = Math.max(
+    padding,
+    Math.min(top, window.innerHeight - menuHeight - padding)
+  );
+
+  setFolderMenuPosition({ top, left });
+  setOpenFolderMenu(folder.id);
+}}
   >
-    <Trash2 size={16} />
+    <MoreVertical size={18} />
   </button>
+
+  
+{openFolderMenu === folder.id &&
+  folderMenuPosition &&
+  createPortal(
+    <div
+      className="folder-actions-menu"
+      style={{
+        position: "fixed",
+        top: `${folderMenuPosition.top}px`,
+        left: `${folderMenuPosition.left}px`,
+        right: "auto",
+        bottom: "auto",
+        transform: "none",
+        zIndex: 9999,
+      }}
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={() => {
+          setRenameFolderData(folder);
+          setRenameFolderName(folder.name);
+          setOpenFolderMenu(null);
+          setFolderMenuPosition(null);
+        }}
+      >
+        <Pencil size={16} />
+        Rename
+      </button>
+
+      <button
+  type="button"
+  onClick={() => {
+    setOpenFolderMenu(null);
+    setFolderMenuPosition(null);
+    setShareFolderData(folder);
+  }}
+>
+  <Share2 size={16} />
+  Share
+</button>
+
+      <button
+        type="button"
+        onClick={() => {
+          setFolderDetailsData(folder);
+          setOpenFolderMenu(null);
+          setFolderMenuPosition(null);
+        }}
+      >
+        <Info size={16} />
+        Details
+      </button>
+
+      <button
+        type="button"
+        className="danger-action"
+        onClick={() => {
+          setOpenFolderMenu(null);
+          setFolderMenuPosition(null);
+          handleDeleteFolder(folder);
+        }}
+      >
+        <Trash2 size={16} />
+        Move to Trash
+      </button>
+    </div>,
+    document.body
+  )}
+
+</div>
+
 </div>
         ))}
     </div>
@@ -833,6 +1655,18 @@ const handleDeleteFolder = async (folder) => {
     }
   }}
 >
+
+  <label
+  className="file-selection-checkbox"
+  onClick={(event) => event.stopPropagation()}
+>
+  <input
+    type="checkbox"
+    checked={selectedFileIds.includes(file.id)}
+    onChange={() => toggleFileSelection(file.id)}
+    aria-label={`Select ${file.name}`}
+  />
+</label>
                 <div className="file-icon">
                   {getFileIcon(file.mime_type)}
                 </div>
@@ -891,6 +1725,18 @@ const handleDeleteFolder = async (folder) => {
     }
   }}
 >
+
+  <label
+  className="file-selection-checkbox"
+  onClick={(event) => event.stopPropagation()}
+>
+  <input
+    type="checkbox"
+    checked={selectedFileIds.includes(file.id)}
+    onChange={() => toggleFileSelection(file.id)}
+    aria-label={`Select ${file.name}`}
+  />
+</label>
                 <div className="file-grid-icon">
                   {getFileIcon(file.mime_type)}
                 </div>
@@ -917,6 +1763,17 @@ const handleDeleteFolder = async (folder) => {
                     Download
                   </button>
 
+<button
+  type="button"
+  onClick={(event) => {
+    event.stopPropagation();
+    handleMakeCopy(file);
+  }}
+>
+  <Copy size={16} />
+  Make a copy
+</button>
+
                   <button
   onClick={(event) => {
     event.stopPropagation();
@@ -931,12 +1788,27 @@ const handleDeleteFolder = async (folder) => {
   type="button"
   onClick={(event) => {
     event.stopPropagation();
+    handleToggleFavorite(file);
+  }}
+>
+  <Star
+    size={16}
+    fill={file.is_favorite ? "currentColor" : "none"}
+  />
+  {file.is_favorite ? "Remove from Favorites" : "Add to Favorites"}
+</button>
+
+<button
+  type="button"
+  onClick={(event) => {
+    event.stopPropagation();
     handleRenameOpen(file);
   }}
 >
   <Pencil size={16} />
   Rename
 </button>
+
 
 <button
   type="button"
@@ -1008,6 +1880,17 @@ const handleDeleteFolder = async (folder) => {
                     Download
                   </button>
 
+                  
+<button
+  type="button"
+  disabled={copyingFile !== null}
+  onClick={() => handleMakeCopy(file)}
+>
+  <Copy size={16} />
+  {copyingFile === file.id ? "Making copy..." : "Make a copy"}
+</button>
+
+
                   <button
   type="button"
   onClick={() => handleShare(file)}
@@ -1018,11 +1901,23 @@ const handleDeleteFolder = async (folder) => {
 
 <button
   type="button"
+  onClick={() => handleToggleFavorite(file)}
+>
+  <Star
+    size={16}
+    fill={file.is_favorite ? "currentColor" : "none"}
+  />
+  {file.is_favorite ? "Remove from Favorites" : "Add to Favorites"}
+</button>
+
+<button
+  type="button"
   onClick={() => handleRenameOpen(file)}
 >
   <Pencil size={16} />
   Rename
 </button>
+
 
 <button
   type="button"
@@ -1071,6 +1966,16 @@ const handleDeleteFolder = async (folder) => {
 }}
   />
 )}
+
+
+{shareFolderData && (
+  <ShareFolderModal
+    folder={shareFolderData}
+    onClose={() => setShareFolderData(null)}
+    onShared={loadFilesAndFolders}
+  />
+)}
+
 
 {showFolderModal && (
   <div
@@ -1160,101 +2065,220 @@ const handleDeleteFolder = async (folder) => {
   </div>
 )}
 
+
 {moveFileData && (
   <div
-    className="folder-modal-overlay"
-    onMouseDown={(event) => {
-      if (event.target === event.currentTarget && !movingFile) {
-        setMoveFileData(null);
-      }
+    className="folder-copy-overlay"
+    onClick={() => {
+      if (!movingFile) setMoveFileData(null);
     }}
   >
     <div
-      className="folder-modal move-folder-modal"
+      className="folder-copy-modal"
       role="dialog"
       aria-modal="true"
       aria-labelledby="move-folder-modal-title"
+      onClick={(event) => event.stopPropagation()}
     >
-      <div className="folder-modal-header">
+      <div className="folder-copy-modal-header">
         <div>
-          <p className="folder-modal-eyebrow">
-            MOVE FILE
-          </p>
-
-          <h2 id="move-folder-modal-title">
-            Move to folder
-          </h2>
-
-          <p className="folder-modal-subtitle">
-            Choose where you want to store this file.
+          <h2 id="move-folder-modal-title">Move files</h2>
+          <p>
+            {bulkMoveMode
+              ? `Choose a destination for ${selectedFiles.length} selected files.`
+              : `Choose where to move "${moveFileData.name}".`}
           </p>
         </div>
 
         <button
           type="button"
-          className="folder-modal-close"
+          className="folder-copy-close"
           onClick={() => setMoveFileData(null)}
           disabled={movingFile}
-          aria-label="Close"
+          aria-label="Close dialog"
         >
-          ×
+          <X size={20} />
         </button>
       </div>
 
-      <div className="move-folder-list">
+      <div className="folder-copy-destinations">
+        <label
+          className="folder-copy-option"
+          data-selected={fileMoveDestination === ""}
+        >
+          <input
+            type="radio"
+            name="file-move-destination"
+            checked={fileMoveDestination === ""}
+            onChange={() => setFileMoveDestination("")}
+          />
+          <Folder size={19} />
+          <span>
+            <strong>My Files</strong>
+            <small>Root directory</small>
+          </span>
+        </label>
+
+        {folders.map((folder) => (
+          <label
+            key={folder.id}
+            className="folder-copy-option"
+            data-selected={fileMoveDestination === folder.id}
+          >
+            <input
+              type="radio"
+              name="file-move-destination"
+              checked={fileMoveDestination === folder.id}
+              onChange={() => setFileMoveDestination(folder.id)}
+            />
+            <Folder size={19} />
+            <span>
+              <strong>{folder.name}</strong>
+              <small>
+  {folder.id === moveFileData.folder_id
+    ? `Current location · ${getFolderDisplayPath(folder)}`
+    : getFolderDisplayPath(folder)}
+</small>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      <div className="folder-copy-modal-actions">
         <button
           type="button"
-          className="move-folder-option"
-          onClick={() => handleMove(null)}
+          className="bulk-clear-button"
+          onClick={() => setMoveFileData(null)}
           disabled={movingFile}
         >
-          <Folder size={18} />
-
-          <div>
-            <strong>My Files</strong>
-            <span>Root folder</span>
-          </div>
+          Cancel
         </button>
 
-        {folders.length === 0 ? (
-          <p className="move-folder-empty">
-            You don't have any folders yet.
-          </p>
-        ) : (
-          folders.map((folder) => (
-            <button
-              key={folder.id}
-              type="button"
-              className="move-folder-option"
-              onClick={() => handleMove(folder.id)}
-              disabled={
-                movingFile ||
-                folder.id === moveFileData.folder_id
-              }
-            >
-              <Folder size={18} />
-
-              <div>
-                <strong>{folder.name}</strong>
-                <span>
-                  {folder.id === moveFileData.folder_id
-                    ? "Current folder"
-                    : "Folder"}
-                </span>
-              </div>
-            </button>
-          ))
-        )}
+        <button
+          type="button"
+          className="bulk-move-button"
+          onClick={() => handleMove(fileMoveDestination || null)}
+          disabled={
+            movingFile ||
+            fileMoveDestination === (moveFileData.folder_id ?? "")
+          }
+        >
+          <Folder size={16} />
+          {movingFile ? "Moving..." : "Move here"}
+        </button>
       </div>
-
-      {movingFile && (
-        <p className="move-folder-loading">
-          Moving file...
-        </p>
-      )}
     </div>
   </div>
 )}
+
+
+
+
+{copyFileData && (
+  <div
+    className="folder-copy-overlay"
+    onClick={() => {
+      if (!copyingToFolder) setCopyFileData(null);
+    }}
+  >
+    <div
+      className="folder-copy-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="copy-folder-modal-title"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="folder-copy-modal-header">
+        <div>
+          <h2 id="copy-folder-modal-title">Copy files</h2>
+          <p>
+            {bulkCopyMode
+              ? `Choose a destination for copies of ${selectedFiles.length} selected files.`
+              : `Choose where to save the copy of "${copyFileData.name}".`}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="folder-copy-close"
+          onClick={() => setCopyFileData(null)}
+          disabled={copyingToFolder}
+          aria-label="Close dialog"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <div className="folder-copy-destinations">
+        <label
+          className="folder-copy-option"
+          data-selected={fileCopyDestination === ""}
+        >
+          <input
+            type="radio"
+            name="file-copy-destination"
+            checked={fileCopyDestination === ""}
+            onChange={() => setFileCopyDestination("")}
+          />
+          <Folder size={19} />
+          <span>
+            <strong>My Files</strong>
+            <small>Root directory</small>
+          </span>
+        </label>
+
+        {folders.map((folder) => (
+          <label
+            key={folder.id}
+            className="folder-copy-option"
+            data-selected={fileCopyDestination === folder.id}
+          >
+            <input
+              type="radio"
+              name="file-copy-destination"
+              checked={fileCopyDestination === folder.id}
+              onChange={() => setFileCopyDestination(folder.id)}
+            />
+            <Folder size={19} />
+            <span>
+              <strong>{folder.name}</strong>
+              <small>
+  {folder.id === copyFileData.folder_id
+    ? `Copy alongside original · ${getFolderDisplayPath(folder)}`
+    : getFolderDisplayPath(folder)}
+</small>
+            </span>
+          </label>
+        ))}
+      </div>
+
+      <div className="folder-copy-modal-actions">
+        <button
+          type="button"
+          className="bulk-clear-button"
+          onClick={() => setCopyFileData(null)}
+          disabled={copyingToFolder}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className="bulk-copy-button"
+          onClick={() =>
+            handleCopyToFolder(fileCopyDestination || null)
+          }
+          disabled={copyingToFolder}
+        >
+          <Copy size={16} />
+          {copyingToFolder ? "Copying..." : "Copy here"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
 
 {renameFileData && (
   <div
@@ -1382,6 +2406,99 @@ const handleDeleteFolder = async (folder) => {
   </>
 )}
 
+{renameFolderData && (
+  <div
+    className="folder-modal-overlay"
+    onMouseDown={(event) => {
+      if (
+        event.target === event.currentTarget &&
+        !renamingFolder
+      ) {
+        setRenameFolderData(null);
+        setRenameFolderName("");
+      }
+    }}
+  >
+    <div
+      className="folder-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rename-folder-modal-title"
+    >
+      <div className="folder-modal-header">
+        <div>
+          <p className="folder-modal-eyebrow">
+            RENAME FOLDER
+          </p>
+
+          <h2 id="rename-folder-modal-title">
+            Rename folder
+          </h2>
+
+          <p className="folder-modal-subtitle">
+            Give your folder a new name.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="folder-modal-close"
+          onClick={() => {
+            setRenameFolderData(null);
+            setRenameFolderName("");
+          }}
+          disabled={renamingFolder}
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </div>
+
+      <form onSubmit={handleRenameFolder}>
+        <label htmlFor="rename-folder-name">
+          Folder name
+        </label>
+
+        <input
+          id="rename-folder-name"
+          type="text"
+          value={renameFolderName}
+          onChange={(event) =>
+            setRenameFolderName(event.target.value)
+          }
+          autoFocus
+          maxLength={80}
+          required
+        />
+
+        <div className="folder-modal-actions">
+          <button
+            type="button"
+            className="folder-cancel-button"
+            onClick={() => {
+              setRenameFolderData(null);
+              setRenameFolderName("");
+            }}
+            disabled={renamingFolder}
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            className="folder-create-button"
+            disabled={
+              renamingFolder || !renameFolderName.trim()
+            }
+          >
+            {renamingFolder ? "Renaming..." : "Rename"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
 {detailsFile && (
   <FileDetailsModal
     file={detailsFile}
@@ -1393,6 +2510,342 @@ const handleDeleteFolder = async (folder) => {
     onClose={() => setDetailsFile(null)}
   />
 )}
+
+
+{showCopyFoldersModal && (
+  <div
+    className="folder-copy-overlay"
+    onClick={() => setShowCopyFoldersModal(false)}
+  >
+    <div
+      className="folder-copy-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="folder-copy-title"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="folder-copy-modal-header">
+        <div>
+          <h2 id="folder-copy-title">Copy folders</h2>
+          <p>Choose where you want the copies to go.</p>
+        </div>
+
+        <button
+          type="button"
+          className="folder-copy-close"
+          onClick={() => setShowCopyFoldersModal(false)}
+          aria-label="Close dialog"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <label
+        className="folder-copy-option"
+        data-selected={folderCopyDestination === ""}
+      >
+        <input
+          type="radio"
+          name="folder-copy-destination"
+          value=""
+          checked={folderCopyDestination === ""}
+          onChange={() => setFolderCopyDestination("")}
+        />
+        <Folder size={19} />
+        <span>
+          <strong>My Files</strong>
+          <small>Root directory</small>
+        </span>
+      </label>
+
+      <div className="folder-copy-destinations">
+        {folders
+          .filter((folder) => {
+            const excludedIds = new Set(selectedFolderIds);
+
+            let changed = true;
+
+            while (changed) {
+              changed = false;
+
+              folders.forEach((item) => {
+                if (
+                  excludedIds.has(item.parent_id) &&
+                  !excludedIds.has(item.id)
+                ) {
+                  excludedIds.add(item.id);
+                  changed = true;
+                }
+              });
+            }
+
+            return !excludedIds.has(folder.id);
+          })
+          .map((folder) => (
+            <label
+              key={folder.id}
+              className="folder-copy-option"
+              data-selected={folderCopyDestination === folder.id}
+            >
+              <input
+                type="radio"
+                name="folder-copy-destination"
+                value={folder.id}
+                checked={folderCopyDestination === folder.id}
+                onChange={() =>
+                  setFolderCopyDestination(folder.id)
+                }
+              />
+              <Folder size={19} />
+              <span>
+                <strong>{folder.name}</strong>
+<small className="folder-destination-path">
+  {getFolderDisplayPath(folder)}
+</small>
+              </span>
+            </label>
+          ))}
+      </div>
+
+      <div className="folder-copy-modal-actions">
+        <button
+          type="button"
+          className="bulk-clear-button"
+          onClick={() => setShowCopyFoldersModal(false)}
+          disabled={bulkActionLoading}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className="bulk-copy-button"
+          onClick={handleConfirmBulkCopyFolders}
+          disabled={bulkActionLoading}
+        >
+          <Copy size={16} />
+          {bulkActionLoading ? "Copying..." : "Copy here"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+{showMoveFoldersModal && (
+  <div
+    className="folder-copy-overlay"
+    onClick={() => {
+      if (!bulkActionLoading) setShowMoveFoldersModal(false);
+    }}
+  >
+    <div
+      className="folder-copy-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="folder-move-title"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="folder-copy-modal-header">
+        <div>
+          <h2 id="folder-move-title">Move folders</h2>
+          <p>Choose the destination for your selected folders.</p>
+        </div>
+
+        <button
+          type="button"
+          className="folder-copy-close"
+          onClick={() => setShowMoveFoldersModal(false)}
+          disabled={bulkActionLoading}
+          aria-label="Close dialog"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <label
+        className="folder-copy-option"
+        data-selected={folderMoveDestination === ""}
+      >
+        <input
+          type="radio"
+          name="folder-move-destination"
+          checked={folderMoveDestination === ""}
+          onChange={() => setFolderMoveDestination("")}
+        />
+        <Folder size={19} />
+        <span>
+          <strong>My Files</strong>
+          <small>Root directory</small>
+        </span>
+      </label>
+
+      <div className="folder-copy-destinations">
+        {folders
+          .filter((folder) => {
+            const excludedIds = new Set(selectedFolderIds);
+            let changed = true;
+
+            while (changed) {
+              changed = false;
+
+              folders.forEach((item) => {
+                if (
+                  excludedIds.has(item.parent_id) &&
+                  !excludedIds.has(item.id)
+                ) {
+                  excludedIds.add(item.id);
+                  changed = true;
+                }
+              });
+            }
+
+            return !excludedIds.has(folder.id);
+          })
+          .map((folder) => (
+            <label
+              key={folder.id}
+              className="folder-copy-option"
+              data-selected={folderMoveDestination === folder.id}
+            >
+              <input
+                type="radio"
+                name="folder-move-destination"
+                checked={folderMoveDestination === folder.id}
+                onChange={() => setFolderMoveDestination(folder.id)}
+              />
+              <Folder size={19} />
+              <span>
+                <strong>{folder.name}</strong>
+<small className="folder-destination-path">
+  {getFolderDisplayPath(folder)}
+</small>
+              </span>
+            </label>
+          ))}
+      </div>
+
+      <div className="folder-copy-modal-actions">
+        <button
+          type="button"
+          className="bulk-clear-button"
+          onClick={() => setShowMoveFoldersModal(false)}
+          disabled={bulkActionLoading}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className="bulk-move-button"
+          onClick={handleConfirmBulkMoveFolders}
+          disabled={bulkActionLoading}
+        >
+          <Folder size={16} />
+          {bulkActionLoading ? "Moving..." : "Move here"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{folderDetailsData && (
+  <div
+    className="folder-modal-overlay"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        setFolderDetailsData(null);
+      }
+    }}
+  >
+    <div
+      className="folder-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="folder-details-title"
+    >
+      <div className="folder-modal-header">
+        <div>
+          <p className="folder-modal-eyebrow">
+            FOLDER INFORMATION
+          </p>
+
+          <h2 id="folder-details-title">
+            Folder details
+          </h2>
+        </div>
+
+        <button
+          type="button"
+          className="folder-modal-close"
+          onClick={() => setFolderDetailsData(null)}
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="folder-details-content">
+        <div className="folder-details-icon">
+          <Folder size={30} />
+        </div>
+
+        <h3>{folderDetailsData.name}</h3>
+
+        <div className="folder-details-row">
+          <span>Location</span>
+          <strong>
+            {folderDetailsData.parent_id
+              ? getFolderDisplayPath(
+                  folderDetailsData
+                )
+              : "My Files"}
+          </strong>
+        </div>
+
+        <div className="folder-details-row">
+          <span>Created</span>
+          <strong>
+            {folderDetailsData.created_at
+              ? formatDate(folderDetailsData.created_at)
+              : "Not available"}
+          </strong>
+        </div>
+
+        <div className="folder-details-row">
+          <span>Files inside</span>
+          <strong>
+            {files.filter(
+              (file) =>
+                file.folder_id === folderDetailsData.id
+            ).length}
+          </strong>
+        </div>
+
+        <div className="folder-details-row">
+          <span>Subfolders</span>
+          <strong>
+            {folders.filter(
+              (folder) =>
+                folder.parent_id === folderDetailsData.id
+            ).length}
+          </strong>
+        </div>
+      </div>
+
+      <div className="folder-modal-actions">
+        <button
+          type="button"
+          className="folder-create-button"
+          onClick={() => setFolderDetailsData(null)}
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     </main>
   );
 }

@@ -10,6 +10,9 @@ import {
   Eye,
   Download,
   Share2,
+  Folder,
+  ChevronLeft,
+  Copy,
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
@@ -20,10 +23,24 @@ import {
   revokeShare,
   getPreviewUrl,
   downloadFile,
+  getFilesInFolder,
+  copySharedFile,
 } from "../services/files";
+
 
 import FilePreviewModal from "../components/FilePreviewModal";
 import NovaLoader from "../components/NovaLoader";
+
+import {
+  getFolderShares,
+  revokeFolderShare,
+  getFolderSharesByOwner,
+  getSharedFoldersWithMe,
+  getSubfolders,
+  copySharedFolder,
+  getUserFolders,
+} from "../services/folders";
+
 
 function formatFileSize(bytes) {
   if (!bytes) return "0 B";
@@ -65,11 +82,45 @@ function getFileIcon(mimeType) {
   return File;
 }
 
+
+function getDestinationFolderPath(folder, folders) {
+  const parts = [folder.name];
+  let parentId = folder.parent_id;
+  let safety = 0;
+
+  while (parentId && safety < folders.length) {
+    const parent = folders.find((item) => item.id === parentId);
+
+    if (!parent) break;
+
+    parts.unshift(parent.name);
+    parentId = parent.parent_id;
+    safety += 1;
+  }
+
+  return parts.join(" / ");
+}
+
+
 function Shared() {
   const { user } = useAuth();
 
   const [sharedByMe, setSharedByMe] = useState([]);
   const [sharedWithMe, setSharedWithMe] = useState([]);
+  const [foldersSharedByMe, setFoldersSharedByMe] = useState([]);
+  const [foldersSharedWithMe, setFoldersSharedWithMe] = useState([]);
+  const [folderRevokeTarget, setFolderRevokeTarget] = useState(null);
+  const [currentSharedFolder, setCurrentSharedFolder] = useState(null);
+  const [sharedFolderFolders, setSharedFolderFolders] = useState([]);
+  const [sharedFolderFiles, setSharedFolderFiles] = useState([]);
+  const [sharedFolderLoading, setSharedFolderLoading] = useState(false);
+  const [sharedFolderHistory, setSharedFolderHistory] = useState([]);
+  const [copyingItem, setCopyingItem] = useState(null);
+  const [copyMessage, setCopyMessage] = useState("");
+  const [copyTarget, setCopyTarget] = useState(null);
+  const [destinationFolders, setDestinationFolders] = useState([]);
+  const [selectedDestination, setSelectedDestination] = useState("");
+  const [loadingDestinations, setLoadingDestinations] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -86,25 +137,111 @@ function Shared() {
     loadShares();
   }, [user]);
 
-  async function loadShares() {
-    try {
-      setLoading(true);
-      setError("");
+  
+async function loadShares() {
+  try {
+    setLoading(true);
+    setError("");
 
-      const [ownedShares, receivedShares] = await Promise.all([
-        getFileShares(user.id),
-        getSharedWithMe(user.email),
-      ]);
+    const [
+      ownedShares,
+      receivedShares,
+      ownedFolderShares,
+      receivedFolderShares,
+    ] = await Promise.all([
+      getFileShares(user.id),
+      getSharedWithMe(user.email),
+      getFolderSharesByOwner(user.id),
+      getSharedFoldersWithMe(user.email),
+    ]);
 
-      setSharedByMe(ownedShares);
-      setSharedWithMe(receivedShares);
-    } catch (err) {
-      console.error("Error loading shared files:", err);
-      setError("Could not load shared files.");
-    } finally {
-      setLoading(false);
-    }
+    setSharedByMe(ownedShares);
+    setSharedWithMe(receivedShares);
+    setFoldersSharedByMe(ownedFolderShares);
+    setFoldersSharedWithMe(receivedFolderShares);
+  } catch (err) {
+    console.error("Error loading shared items:", err);
+    setError("Could not load shared items.");
+  } finally {
+    setLoading(false);
   }
+}
+
+async function openSharedFolder(folder, isChild = false) {
+  if (!folder?.id) return;
+
+  try {
+    setSharedFolderLoading(true);
+    setError("");
+
+    if (isChild && currentSharedFolder) {
+      setSharedFolderHistory((history) => [
+        ...history,
+        currentSharedFolder,
+      ]);
+    } else {
+      setSharedFolderHistory([]);
+    }
+
+    setCurrentSharedFolder(folder);
+
+    const [subfolders, files] = await Promise.all([
+      getSubfolders(folder.id),
+      getFilesInFolder(folder.id),
+    ]);
+
+    setSharedFolderFolders(subfolders);
+    setSharedFolderFiles(files);
+  } catch (err) {
+    console.error("Error opening shared folder:", err);
+    setSharedFolderFolders([]);
+    setSharedFolderFiles([]);
+    setError(
+      "Could not open this folder. Check the folder and file access permissions."
+    );
+  } finally {
+    setSharedFolderLoading(false);
+  }
+}
+
+async function goBackSharedFolder() {
+  if (sharedFolderHistory.length === 0) {
+    closeSharedFolder();
+    return;
+  }
+
+  const parentFolder =
+    sharedFolderHistory[sharedFolderHistory.length - 1];
+
+  setSharedFolderHistory((history) => history.slice(0, -1));
+
+  try {
+    setSharedFolderLoading(true);
+    setError("");
+    setCurrentSharedFolder(parentFolder);
+
+    const [subfolders, files] = await Promise.all([
+      getSubfolders(parentFolder.id),
+      getFilesInFolder(parentFolder.id),
+    ]);
+
+    setSharedFolderFolders(subfolders);
+    setSharedFolderFiles(files);
+  } catch (err) {
+    console.error("Error returning to parent folder:", err);
+    setError("Could not load the parent folder.");
+  } finally {
+    setSharedFolderLoading(false);
+  }
+}
+
+function closeSharedFolder() {
+  setCurrentSharedFolder(null);
+  setSharedFolderHistory([]);
+  setSharedFolderFolders([]);
+  setSharedFolderFiles([]);
+  setError("");
+}
 
   async function handlePreview(file) {
     try {
@@ -160,6 +297,123 @@ function Shared() {
   return <NovaLoader message="Loading shared files..." />;
 }
 
+
+async function openCopyModal(item, type) {
+  if (!item || !user?.id) return;
+
+  try {
+    setLoadingDestinations(true);
+    setError("");
+    setCopyMessage("");
+    setCopyTarget({ item, type });
+    setSelectedDestination("");
+
+    const folders = await getUserFolders(user.id);
+    setDestinationFolders(folders);
+  } catch (err) {
+    console.error("Could not load destination folders:", err);
+    setError("Could not load your destination folders.");
+    setCopyTarget(null);
+  } finally {
+    setLoadingDestinations(false);
+  }
+}
+
+function handleCopySharedFile(file) {
+  openCopyModal(file, "file");
+}
+
+function handleCopySharedFolder(folder) {
+  openCopyModal(folder, "folder");
+}
+
+async function confirmCopy() {
+  if (!copyTarget || !user?.id || loadingDestinations) return;
+
+  const destinationFolderId = selectedDestination || null;
+  const { item, type } = copyTarget;
+
+  try {
+    setCopyingItem(item.id);
+    setCopyMessage("");
+    setError("");
+
+    if (type === "file") {
+      await copySharedFile(item, user.id, destinationFolderId);
+      setCopyMessage(
+        `"${item.name}" was copied to ${
+          destinationFolderId
+            ? destinationFolders.find(
+                (folder) => folder.id === destinationFolderId
+              )?.name || "the selected folder"
+            : "My Files"
+        }.`
+      );
+    } else {
+      const result = await copySharedFolder(
+        item,
+        user.id,
+        destinationFolderId
+      );
+
+      setCopyMessage(
+        `"${item.name}" was copied successfully, including ${
+          result.copiedFileCount
+        } file(s).`
+      );
+    }
+
+    setCopyTarget(null);
+    setSelectedDestination("");
+  } catch (err) {
+    console.error("Error copying shared item:", err);
+    setError(err.message || "Could not copy this item.");
+  } finally {
+    setCopyingItem(null);
+  }
+}
+
+
+
+async function handleFolderRevoke() {
+  if (!folderRevokeTarget) return;
+
+  try {
+    await revokeFolderShare(folderRevokeTarget.id);
+
+    setFoldersSharedByMe((current) =>
+      current.filter((share) => share.id !== folderRevokeTarget.id)
+    );
+
+    setFolderRevokeTarget(null);
+  } catch (err) {
+    console.error("Error revoking folder share:", err);
+    setError("Could not revoke folder access.");
+  }
+}
+
+async function openCopyModal(item, type) {
+  if (!item || !user?.id) return;
+
+  setCopyTarget({ item, type });
+  setSelectedDestination("");
+  setDestinationFolders([]);
+  setLoadingDestinations(true);
+  setCopyMessage("");
+  setError("");
+
+  try {
+    const folders = await getUserFolders(user.id);
+    setDestinationFolders(folders ?? []);
+  } catch (err) {
+    console.error("Error loading destination folders:", err);
+    setError("Could not load your folders. Please try again.");
+  } finally {
+    setLoadingDestinations(false);
+  }
+}
+
+
   return (
     <main className="dashboard shared-page">
       <section className="dashboard-content">
@@ -180,6 +434,12 @@ function Shared() {
             {error}
           </div>
         )}
+
+        {copyMessage && (
+  <div className="shared-success" role="status">
+    {copyMessage}
+  </div>
+)}
 
         {/* =========================================
             SHARED BY YOU
@@ -230,9 +490,18 @@ function Shared() {
 
                 return (
                   <div
-                    className="shared-item"
-                    key={share.id}
-                  >
+  className="shared-item shared-clickable-item"
+  key={share.id}
+  onClick={() => file && handlePreview(file)}
+  role="button"
+  tabIndex={file ? 0 : -1}
+  onKeyDown={(event) => {
+    if (file && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      handlePreview(file);
+    }
+  }}
+>
                     <div className="shared-file-icon">
                       <Icon size={20} />
                     </div>
@@ -266,15 +535,10 @@ function Shared() {
                     <div className="shared-item-actions">
                       <button
                         className="shared-action-btn"
-                        onClick={() => handlePreview(file)}
-                        title="Preview"
-                      >
-                        <Eye size={17} />
-                      </button>
-
-                      <button
-                        className="shared-action-btn"
-                        onClick={() => handleDownload(file)}
+                        onClick={(event) => {
+  event.stopPropagation();
+  handleDownload(file);
+}}
                         title="Download"
                       >
                         <Download size={17} />
@@ -282,7 +546,10 @@ function Shared() {
 
                       <button
                         className="shared-revoke-btn"
-                        onClick={() => setRevokeTarget(share)}
+                        onClick={(event) => {
+  event.stopPropagation();
+  setRevokeTarget(share);
+}}
                       >
                         Revoke
                       </button>
@@ -294,6 +561,308 @@ function Shared() {
             </div>
           )}
         </section>
+
+        
+{/* FOLDERS SHARED BY YOU */}
+<section className="shared-section">
+  <div className="shared-section-header">
+    <div className="shared-section-title">
+      <div className="shared-section-icon">
+        <Share2 size={18} />
+      </div>
+      <div>
+        <h2>Folders shared by you</h2>
+        <p>Folders you've shared with other people.</p>
+      </div>
+    </div>
+
+    <span className="shared-count">
+      {foldersSharedByMe.length}
+      <span>
+        {foldersSharedByMe.length === 1 ? " folder" : " folders"}
+      </span>
+    </span>
+  </div>
+
+  {foldersSharedByMe.length === 0 ? (
+    <div className="shared-empty">
+      <div className="shared-empty-icon">
+        <Share2 size={22} />
+      </div>
+      <h3>No shared folders yet</h3>
+      <p>Folders you share with others will appear here.</p>
+    </div>
+  ) : (
+    <div className="shared-list">
+      {foldersSharedByMe.map((share) => (
+        <div className="shared-item" key={share.id}>
+          <div className="shared-file-icon">
+            <File size={20} />
+          </div>
+
+          <div className="shared-file-info">
+            <h3>{share.folders?.name || "Unknown folder"}</h3>
+            <p>Shared {formatDate(share.created_at)}</p>
+          </div>
+
+          <div className="shared-role">
+            <UserRound size={15} />
+            <div>
+              <span className="shared-role-label">Shared with</span>
+              <strong>{share.shared_with_email}</strong>
+            </div>
+          </div>
+
+          <div className="shared-item-actions">
+            <button
+              className="shared-revoke-btn"
+              onClick={(event) => {
+                event.stopPropagation();
+                setFolderRevokeTarget(share);
+              }}
+            >
+              Revoke
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</section>
+
+
+{/* FOLDERS SHARED WITH YOU */}
+<section className="shared-section">
+  <div className="shared-section-header">
+    <div className="shared-section-title">
+      <div className="shared-section-icon">
+        <UserRound size={18} />
+      </div>
+
+      <div>
+        <h2>
+          {currentSharedFolder
+            ? currentSharedFolder.name
+            : "Folders shared with you"}
+        </h2>
+
+        <p>
+          {currentSharedFolder
+            ? "Browse the folders and files shared with you."
+            : "Folders other people have shared with your account."}
+        </p>
+      </div>
+    </div>
+
+    <span className="shared-count">
+      {currentSharedFolder
+        ? sharedFolderFolders.length + sharedFolderFiles.length
+        : foldersSharedWithMe.length}
+      <span> items</span>
+    </span>
+  </div>
+
+  {currentSharedFolder ? (
+    <>
+      <button
+        type="button"
+        className="shared-action-btn"
+        onClick={goBackSharedFolder}
+        title="Go back"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "8px",
+          width: "auto",
+          padding: "8px 12px",
+          marginBottom: "16px",
+        }}
+      >
+        <ChevronLeft size={17} />
+        Back
+      </button>
+
+      {sharedFolderLoading ? (
+        <NovaLoader message="Opening shared folder..." />
+      ) : sharedFolderFolders.length === 0 &&
+        sharedFolderFiles.length === 0 ? (
+        <div className="shared-empty">
+          <div className="shared-empty-icon">
+            <Folder size={22} />
+          </div>
+          <h3>This folder is empty</h3>
+          <p>There are no accessible items in this folder.</p>
+        </div>
+      ) : (
+        <div className="shared-list">
+          {sharedFolderFolders.map((folder) => (
+            <button
+              type="button"
+              className="shared-item"
+              key={`folder-${folder.id}`}
+              onClick={() => openSharedFolder(folder, true)}
+              style={{
+                width: "100%",
+                textAlign: "left",
+                color: "inherit",
+                cursor: "pointer",
+              }}
+            >
+              <div className="shared-file-icon">
+                <Folder size={20} />
+              </div>
+
+              <div className="shared-file-info">
+                <h3>{folder.name}</h3>
+                <p>Folder</p>
+              </div>
+
+              <div className="shared-item-actions">
+                <ChevronLeft
+                  size={17}
+                  style={{ transform: "rotate(180deg)" }}
+                />
+              </div>
+            </button>
+          ))}
+
+          {sharedFolderFiles.map((file) => {
+            const Icon = getFileIcon(file.mime_type);
+
+            return (
+              <div
+  className="shared-item shared-clickable-item"
+  key={`file-${file.id}`}
+  onClick={() => handlePreview(file)}
+  role="button"
+  tabIndex={0}
+  onKeyDown={(event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handlePreview(file);
+    }
+  }}
+>
+                <div className="shared-file-icon">
+                  <Icon size={20} />
+                </div>
+
+                <div className="shared-file-info">
+                  <h3>{file.name}</h3>
+                  <p>
+                    {formatFileSize(file.size_bytes)}
+                    <span> · </span>
+                    {formatDate(file.created_at)}
+                  </p>
+                </div>
+
+                <div className="shared-item-actions">
+                  <button
+                    type="button"
+                    className="shared-action-btn"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDownload(file);
+                    }}
+                    title="Download"
+                  >
+                    <Download size={17} />
+                  </button>
+                  
+                  <button
+  className="shared-action-btn"
+  onClick={(event) => {
+    event.stopPropagation();
+    handleCopySharedFile(file);
+  }}
+  disabled={copyingItem === file?.id}
+  title="Add to My Files"
+>
+  <Copy size={17} />
+</button>
+
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  ) : foldersSharedWithMe.length === 0 ? (
+    <div className="shared-empty">
+      <div className="shared-empty-icon">
+        <UserRound size={22} />
+      </div>
+      <h3>No shared folders</h3>
+      <p>Folders shared with your account will appear here.</p>
+    </div>
+  ) : (
+    <div className="shared-list">
+      {foldersSharedWithMe.map((share) => (
+        
+        <div className="shared-item" key={share.id}>
+          <button
+            type="button"
+            onClick={() => {
+              if (share.folders) {
+                openSharedFolder(share.folders);
+              }
+            }}
+            style={{
+  display: "flex",
+  alignItems: "center",
+  gap: "16px",
+  flex: 1,
+  minWidth: 0,
+  border: 0,
+  background: "transparent",
+  font: "inherit",
+  textAlign: "left",
+  color: "inherit",
+  cursor: "pointer",
+  padding: "0 12px 0 0",
+}}
+          >
+            <div className="shared-file-icon">
+              <Folder size={20} />
+            </div>
+
+            <div className="shared-file-info">
+              <h3>{share.folders?.name || "Unknown folder"}</h3>
+              <p>Shared {formatDate(share.created_at)}</p>
+            </div>
+
+            <div className="shared-role">
+              <UserRound size={15} />
+              <div>
+                <span className="shared-role-label">Access</span>
+                <strong>Shared with you</strong>
+              </div>
+            </div>
+          </button>
+
+          <div className="shared-item-actions">
+            <button
+              type="button"
+              className="shared-action-btn"
+              onClick={(event) => {
+                event.stopPropagation();
+                handleCopySharedFolder(share.folders);
+              }}
+              disabled={copyingItem === share.folders?.id || !share.folders}
+              title="Add folder to My Files"
+            >
+              <Copy size={17} />
+            </button>
+          </div>
+        </div>
+
+      ))}
+    </div>
+  )}
+</section>
+
+
 
         {/* =========================================
             SHARED WITH YOU
@@ -344,9 +913,18 @@ function Shared() {
 
                 return (
                   <div
-                    className="shared-item"
-                    key={share.id}
-                  >
+  className="shared-item shared-clickable-item"
+  key={share.id}
+  onClick={() => file && handlePreview(file)}
+  role="button"
+  tabIndex={file ? 0 : -1}
+  onKeyDown={(event) => {
+    if (file && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      handlePreview(file);
+    }
+  }}
+>
                     <div className="shared-file-icon">
                       <Icon size={20} />
                     </div>
@@ -380,19 +958,29 @@ function Shared() {
                     <div className="shared-item-actions">
                       <button
                         className="shared-action-btn"
-                        onClick={() => handlePreview(file)}
-                        title="Preview"
-                      >
-                        <Eye size={17} />
-                      </button>
-
-                      <button
-                        className="shared-action-btn"
-                        onClick={() => handleDownload(file)}
+                        onClick={(event) => {
+  event.stopPropagation();
+  handleDownload(file);
+}}
                         title="Download"
                       >
                         <Download size={17} />
                       </button>
+
+                      
+<button
+  type="button"
+  className="shared-action-btn"
+  onClick={(event) => {
+  event.stopPropagation();
+  handleCopySharedFile(file);
+}}
+  disabled={copyingItem === file?.id}
+  title="Add to My Files"
+>
+  <Copy size={17} />
+</button>
+
                     </div>
                   </div>
                 );
@@ -457,6 +1045,175 @@ function Shared() {
           </div>
         </div>
       )}
+
+      
+{folderRevokeTarget && (
+  <div
+    className="shared-modal-overlay"
+    onClick={() => setFolderRevokeTarget(null)}
+  >
+    <div
+      className="shared-modal"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        className="shared-modal-close"
+        onClick={() => setFolderRevokeTarget(null)}
+        aria-label="Close"
+      >
+        <X size={18} />
+      </button>
+
+      <div className="shared-modal-icon">
+        <Share2 size={20} />
+      </div>
+
+      <h2>Revoke folder access?</h2>
+
+      <p>
+        <strong>
+          {folderRevokeTarget.folders?.name || "This folder"}
+        </strong>{" "}
+        will no longer be shared with{" "}
+        <strong>{folderRevokeTarget.shared_with_email}</strong>.
+      </p>
+
+      <div className="shared-modal-actions">
+        <button
+          className="shared-cancel-btn"
+          onClick={() => setFolderRevokeTarget(null)}
+        >
+          Cancel
+        </button>
+
+        <button
+          className="shared-confirm-btn"
+          onClick={handleFolderRevoke}
+        >
+          Revoke access
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+{/* COPY DESTINATION MODAL */}
+
+
+{copyTarget && (
+  <div
+    className="folder-copy-overlay"
+    onClick={() => {
+      if (!copyingItem) setCopyTarget(null);
+    }}
+  >
+    <div
+      className="folder-copy-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="shared-copy-title"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="folder-copy-modal-header">
+        <div>
+          <h2 id="shared-copy-title">
+            Copy {copyTarget.type === "folder" ? "folder" : "file"}
+          </h2>
+          <p>
+            Choose where to save the copy of "{copyTarget.item.name}".
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="folder-copy-close"
+          onClick={() => setCopyTarget(null)}
+          disabled={Boolean(copyingItem)}
+          aria-label="Close dialog"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <div className="folder-copy-destinations">
+        <label
+          className="folder-copy-option"
+          data-selected={selectedDestination === ""}
+        >
+          <input
+            type="radio"
+            name="shared-copy-destination"
+            checked={selectedDestination === ""}
+            onChange={() => setSelectedDestination("")}
+          />
+
+          <Folder size={19} />
+
+          <span>
+            <strong>My Files</strong>
+            <small>Root directory</small>
+          </span>
+        </label>
+
+        {loadingDestinations ? (
+          <p>Loading folders...</p>
+        ) : destinationFolders.length === 0 ? (
+          <p>You don't have any folders yet.</p>
+        ) : (
+          destinationFolders.map((folder) => (
+            <label
+              key={folder.id}
+              className="folder-copy-option"
+              data-selected={selectedDestination === folder.id}
+            >
+              <input
+                type="radio"
+                name="shared-copy-destination"
+                checked={selectedDestination === folder.id}
+                onChange={() => setSelectedDestination(folder.id)}
+              />
+
+              <Folder size={19} />
+
+              <span>
+                <strong>{folder.name}</strong>
+                <small>
+                  {getDestinationFolderPath(folder, destinationFolders)}
+                </small>
+              </span>
+            </label>
+          ))
+        )}
+      </div>
+
+      <div className="folder-copy-modal-actions">
+        <button
+          type="button"
+          className="bulk-clear-button"
+          onClick={() => setCopyTarget(null)}
+          disabled={Boolean(copyingItem)}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className="bulk-copy-button"
+          onClick={confirmCopy}
+          disabled={Boolean(copyingItem) || loadingDestinations}
+        >
+          <Copy size={16} />
+          {copyingItem ? "Copying..." : "Copy here"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+
+
 
       {/* PREVIEW */}
 
