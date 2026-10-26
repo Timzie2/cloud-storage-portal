@@ -1547,70 +1547,6 @@ const handleDownloadFolder = async (folder) => {
           </div>
         </div>
 
-        {visibleFiles.length > 0 && (
-  <div className="bulk-selection-toolbar">
-    <label className="bulk-select-all">
-      <input
-        type="checkbox"
-        checked={allVisibleSelected}
-        onChange={toggleSelectAll}
-        aria-label="Select all visible files"
-      />
-
-      <span>Select all</span>
-    </label>
-
-    {selectedFileIds.length > 0 && (
-      <div className="bulk-selection-actions">
-        <span className="bulk-selection-count">
-          {selectedFileIds.length} selected
-        </span>
-
-        <button
-  type="button"
-  onClick={handleBulkCopyOpen}
-  disabled={bulkActionLoading || movingFile || copyingToFolder}
-  className="bulk-copy-button"
->
-  <Copy size={16} />
-  Copy
-</button>
-
-<button
-  type="button"
-  onClick={handleBulkMoveOpen}
-  disabled={bulkActionLoading || movingFile || copyingToFolder}
-  className="bulk-move-button"
->
-  <Folder size={16} />
-  Move
-</button>
-
-        <button
-          type="button"
-          onClick={handleBulkDelete}
-          disabled={bulkActionLoading}
-          className="bulk-delete-button"
-        >
-          <Trash2 size={16} />
-          {bulkActionLoading ? "Deleting..." : "Delete"}
-        </button>
-
-        <button
-          type="button"
-          onClick={clearSelection}
-          disabled={bulkActionLoading}
-          className="bulk-clear-button"
-          aria-label="Clear selection"
-        >
-          <X size={16} />
-          Clear
-        </button>
-      </div>
-    )}
-  </div>
-)}
-
         <div className="files-upload-section">
   <UploadCard
     folderId={currentFolderId}
@@ -1873,6 +1809,75 @@ setOpenFolderMenu(folder.id);
   </div>
 )}
 
+<div className="files-section">
+  <div className="files-section-header">
+    <h2>Files</h2>
+  </div>
+
+  {visibleFiles.length > 0 && (
+  <div className="bulk-selection-toolbar">
+    <label className="bulk-select-all">
+      <input
+        type="checkbox"
+        checked={allVisibleSelected}
+        onChange={toggleSelectAll}
+        aria-label="Select all visible files"
+      />
+
+      <span>Select all</span>
+    </label>
+
+    {selectedFileIds.length > 0 && (
+      <div className="bulk-selection-actions">
+        <span className="bulk-selection-count">
+          {selectedFileIds.length} selected
+        </span>
+
+        <button
+  type="button"
+  onClick={handleBulkCopyOpen}
+  disabled={bulkActionLoading || movingFile || copyingToFolder}
+  className="bulk-copy-button"
+>
+  <Copy size={16} />
+  Copy
+</button>
+
+<button
+  type="button"
+  onClick={handleBulkMoveOpen}
+  disabled={bulkActionLoading || movingFile || copyingToFolder}
+  className="bulk-move-button"
+>
+  <Folder size={16} />
+  Move
+</button>
+
+        <button
+          type="button"
+          onClick={handleBulkDelete}
+          disabled={bulkActionLoading}
+          className="bulk-delete-button"
+        >
+          <Trash2 size={16} />
+          {bulkActionLoading ? "Deleting..." : "Delete"}
+        </button>
+
+        <button
+          type="button"
+          onClick={clearSelection}
+          disabled={bulkActionLoading}
+          className="bulk-clear-button"
+          aria-label="Clear selection"
+        >
+          <X size={16} />
+          Clear
+        </button>
+      </div>
+    )}
+  </div>
+)}
+
         {visibleFiles.length === 0 ? (
 
           <div className="empty-files files-empty-page">
@@ -2102,6 +2107,7 @@ setOpenFolderMenu(folder.id);
             ))}
           </div>
         )}
+        </div>
 
         
 {openMenu && menuPosition && createPortal(
