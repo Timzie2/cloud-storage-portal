@@ -709,6 +709,54 @@
 }
 }
 
+
+.files-navigation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.files-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--border-color, #292b3a);
+  border-radius: 10px;
+  background: var(--surface-color, #111218);
+  color: var(--text-color, #f5f5f7);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.files-back-button:hover {
+  background: rgba(124, 58, 237, 0.12);
+  border-color: #8b5cf6;
+  transform: translateX(-2px);
+}
+
+.files-back-button:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 3px;
+}
+
+.files-breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+}
+
+
 /* =========================================================
    TOOLBAR
    ========================================================= */
@@ -853,17 +901,16 @@
   border-radius: 16px;
 }
 
+
 .all-file-row {
   position: relative;
   min-height: 76px;
 
   display: grid;
- grid-template-columns: 24px 44px minmax(0, 1fr) 100px 110px 44px;
-gap: 12px;
+  grid-template-columns: 24px 44px minmax(0, 1fr) 100px 110px 44px;
+  gap: 12px;
 
   align-items: center;
-  gap: 16px;
-
   padding: 12px 18px;
 
   border-bottom: 1px solid var(--border);
@@ -871,9 +918,6 @@ gap: 12px;
   transition: background 0.2s ease;
 }
 
-.all-file-row:last-child {
-  border-bottom: none;
-}
 
 .all-file-row:hover {
   background: var(--surface-hover);
@@ -5736,6 +5780,32 @@ gap: 12px;
   }
 }
 
+/* =========================================================
+   MY FILES — TABLET LIST VIEW
+========================================================= */
+
+@media (min-width: 601px) and (max-width: 768px) {
+  .all-file-row {
+    grid-template-columns: 20px 40px minmax(0, 1fr) 75px 85px 36px;
+    gap: 10px;
+    padding: 12px;
+    min-height: 72px;
+  }
+
+  .all-file-name {
+    min-width: 0;
+  }
+
+  .all-file-name strong {
+    overflow-wrap: anywhere;
+  }
+
+  .all-file-size,
+  .all-file-date {
+    font-size: 12px;
+  }
+}
+
 
 /* =========================================================
    MY FILES — MOBILE LIST VIEW
@@ -6269,12 +6339,17 @@ gap: 12px;
   color: var(--text);
 }
 
+
 .folder-actions-menu {
   position: fixed;
   display: grid;
   gap: 3px;
   width: 190px;
   max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -6596,4 +6671,238 @@ gap: 12px;
     height: 34px;
     flex-basis: 34px;
   }
+}
+
+
+.folder-download-modal {
+  width: min(460px, calc(100vw - 32px));
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 28px;
+  border: 1px solid var(--border-color, #2b2d42);
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+}
+
+.folder-download-modal h2 {
+  margin: 0 0 8px;
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.folder-download-modal > p {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.folder-download-progress-track {
+  width: 100%;
+  height: 8px;
+  margin: 22px 0 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border-color, #e5e7eb);
+}
+
+.folder-download-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7c3aed, #06b6d4);
+  transition: width 0.25s ease;
+}
+
+.folder-download-progress-text {
+  margin: 8px 0 4px;
+  font-size: 14px;
+  color: var(--text-secondary, #9ca3af);
+}
+
+.folder-download-progress-percent {
+  margin: 0 0 20px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.folder-download-failures {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 12px;
+  background: var(--surface-secondary, #f9fafb);
+  overflow-wrap: anywhere;
+}
+
+.folder-download-failures ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.folder-download-failures li {
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+.folder-download-failures p {
+  font-size: 13px;
+}
+
+.folder-download-modal .modal-button {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 4px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #7c3aed, #06b6d4);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.folder-download-modal .modal-button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+
+
+.shared-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 16px 64px;
+  padding: 10px 14px;
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-radius: 10px;
+  background: rgba(248, 113, 113, 0.07);
+  color: #f87171;
+  font-size: 13px;
+  line-height: 1.5;
+  animation: shared-error-in 180ms ease-out;
+}
+
+.shared-error-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(248, 113, 113, 0.15);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@keyframes shared-error-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .shared-error {
+    margin-left: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+
+@media (max-width: 600px) {
+  .shared-error {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 16px 0;
+    padding: 10px 12px;
+    gap: 8px;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+    transition: opacity 400ms ease, transform 400ms ease;
+    opacity: 1;
+  }
+}
+
+
+
+.shared-error-visible {
+  animation: shared-error-in 200ms ease-out;
+}
+
+@keyframes shared-error-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+.shared-error-exit {
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 400ms ease, transform 400ms ease;
+}
+
+.shared-folder-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.shared-folder-heading .shared-error {
+  margin-top: 10px;
+  margin-left: 0;
+  width: fit-content;
+  max-width: 100%;
+  transform: translateX(-2px);
+}
+
+
+/* NOVA — Compact mobile action menu */
+@media (max-width: 768px) {
+  .file-menu-floating,
+  .folder-actions-menu {
+    width: 210px;
+    max-width: calc(100vw - 32px);
+    max-height: min(65vh, 440px);
+
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+
+    padding: 8px;
+    gap: 2px;
+    box-sizing: border-box;
+
+    border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.38);
+
+    max-height: min(390px, calc(100dvh - 100px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    }
+
+  .file-menu-floating button,
+.folder-actions-menu button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  font-size: 13px;
+}
 }

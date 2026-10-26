@@ -10,26 +10,36 @@ import {
   Film,
   Music,
   Upload,
+  ChevronDown,
+  Folder,
+  FolderUp,
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
 import { uploadFile } from "../services/storage";
 import { createNotification } from "../services/notifications";
 import { getStorageQuota } from "../services/storageQuota";
+import { createFolder } from "../services/folders";
 
 function UploadCard({ onUploadComplete, folderId = null, uploadTriggerRef }) {
   const { user } = useAuth();
 
   const fileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
 
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
 
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [fileRelativePaths, setFileRelativePaths] = useState(
+  new Map()
+);
+const fileRelativePathsRef = useRef(new Map());
   const [activeFileIndex, setActiveFileIndex] = useState(0);
 
   const [previewUrls, setPreviewUrls] = useState({});
   const [isDragging, setIsDragging] = useState(false);
+  const [showUploadOptions, setShowUploadOptions] = useState(false);
 
   const formatStorage = (bytes) => {
     if (!bytes || bytes <= 0) return "0 B";
@@ -109,30 +119,60 @@ function UploadCard({ onUploadComplete, folderId = null, uploadTriggerRef }) {
     return urls;
   };
 
-  const addFiles = (files) => {
-    if (!user || files.length === 0) return;
+  
+  
 
-    setMessage("");
 
-    const incomingFiles = Array.from(files);
+const addFiles = (files, preservePaths = false) => {
+  if (!user || !files || files.length === 0) return;
 
-    setSelectedFiles((currentFiles) => {
-      const existingKeys = new Set(
-        currentFiles.map(
-          (file) =>
-            `${file.name}-${file.size}-${file.lastModified}`
-        )
-      );
+  setMessage("");
 
-      const newFiles = incomingFiles.filter((file) => {
-        const key = `${file.name}-${file.size}-${file.lastModified}`;
+  const incomingFiles = Array.from(files);
+  const existingKeys = new Set(
+    selectedFiles.map((file) => {
+      const path = fileRelativePathsRef.current.get(file) || "";
+      return `${path}|${file.name}|${file.size}|${file.lastModified}`;
+    })
+  );
 
-        return !existingKeys.has(key);
-      });
+  const newFiles = [];
 
-      return [...currentFiles, ...newFiles];
-    });
-  };
+  for (const file of incomingFiles) {
+    const relativePath = preservePaths
+      ? file.webkitRelativePath || file.name
+      : "";
+
+    const key = `${relativePath}|${file.name}|${file.size}|${file.lastModified}`;
+
+    if (existingKeys.has(key)) continue;
+
+    existingKeys.add(key);
+    fileRelativePathsRef.current.set(file, relativePath);
+    newFiles.push(file);
+  }
+
+  if (newFiles.length > 0) {
+    setSelectedFiles((currentFiles) => [
+      ...currentFiles,
+      ...newFiles,
+    ]);
+
+    setFileRelativePaths(new Map(fileRelativePathsRef.current));
+  }
+};
+
+
+
+const handleFolderSelect = (event) => {
+  const files = event.target.files;
+
+  if (!files || files.length === 0) return;
+
+  addFiles(files, true);
+
+  event.target.value = "";
+};
 
   useEffect(() => {
     if (selectedFiles.length === 0) {
@@ -182,20 +222,112 @@ function UploadCard({ onUploadComplete, folderId = null, uploadTriggerRef }) {
     }
   };
 
-  const handleDrop = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
+  
+const readDirectoryEntries = async (directoryReader) => {
+  const entries = [];
 
-    setIsDragging(false);
+  // Browsers may return directory entries in batches.
+  while (true) {
+    const batch = await new Promise((resolve, reject) => {
+      directoryReader.readEntries(resolve, reject);
+    });
 
-    if (uploading) return;
+    if (batch.length === 0) break;
+    entries.push(...batch);
+  }
 
-    const files = event.dataTransfer.files;
+  return entries;
+};
 
-    if (!files || files.length === 0) return;
+const readDroppedEntry = async (entry, parentPath = "") => {
+  if (entry.isFile) {
+    const file = await new Promise((resolve, reject) => {
+      entry.file(resolve, reject);
+    });
 
+    const relativePath = `${parentPath}${entry.name}`;
+    return [{ file, relativePath }];
+  }
+
+  if (entry.isDirectory) {
+    const reader = entry.createReader();
+    const entries = await readDirectoryEntries(reader);
+    const results = [];
+
+    for (const childEntry of entries) {
+      const childResults = await readDroppedEntry(
+        childEntry,
+        `${parentPath}${entry.name}/`
+      );
+
+      results.push(...childResults);
+    }
+
+    return results;
+  }
+
+  return [];
+};
+
+const handleDrop = async (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  setIsDragging(false);
+
+  if (uploading || !user) return;
+
+  const items = Array.from(event.dataTransfer.items || []);
+  const entries = items
+    .map((item) => item.webkitGetAsEntry?.())
+    .filter(Boolean);
+
+  try {
+    if (entries.length > 0) {
+      const droppedFiles = [];
+
+      for (const entry of entries) {
+        const results = await readDroppedEntry(entry);
+        droppedFiles.push(...results);
+      }
+
+      setMessage("");
+
+      setSelectedFiles((currentFiles) => {
+        const existingKeys = new Set(
+          currentFiles.map((file) => {
+            const path = fileRelativePathsRef.current.get(file) || "";
+            return `${path}|${file.name}|${file.size}|${file.lastModified}`;
+          })
+        );
+
+        const newFiles = [];
+
+        for (const { file, relativePath } of droppedFiles) {
+          const key = `${relativePath}|${file.name}|${file.size}|${file.lastModified}`;
+
+          if (existingKeys.has(key)) continue;
+
+          existingKeys.add(key);
+          fileRelativePathsRef.current.set(file, relativePath);
+          newFiles.push(file);
+        }
+
+        setFileRelativePaths(new Map(fileRelativePathsRef.current));
+        return [...currentFiles, ...newFiles];
+      });
+
+      return;
+    }
+
+    // Fallback for browsers that don't expose dropped entries.
+    const files = Array.from(event.dataTransfer.files || []);
     addFiles(files);
-  };
+  } catch (error) {
+    console.error("Could not read dropped files or folders:", error);
+    setMessage("Could not read the dropped items. Please try again.");
+  }
+};
+
 
   const removeFile = (indexToRemove) => {
     if (uploading) return;
@@ -275,30 +407,72 @@ function UploadCard({ onUploadComplete, folderId = null, uploadTriggerRef }) {
 
       const uploadedFiles = [];
 
-      for (const file of selectedFiles) {
-        const uploadedFile = await uploadFile(
-          file,
+// Cache created folders so we don't create duplicates
+const folderCache = new Map();
+folderCache.set("", folderId);
+
+for (const file of selectedFiles) {
+  const relativePath = fileRelativePathsRef.current.get(file) || "";
+  const pathParts = relativePath.split("/").filter(Boolean);
+
+  // Ordinary file uploads go into the current folder
+  let targetFolderId = folderId;
+
+  // Folder uploads recreate the selected folder structure
+  if (pathParts.length > 1) {
+    const directoryParts = pathParts.slice(0, -1);
+    let currentPath = "";
+
+    for (const directoryName of directoryParts) {
+      currentPath = currentPath
+        ? `${currentPath}/${directoryName}`
+        : directoryName;
+
+      if (!folderCache.has(currentPath)) {
+        const parentPath = currentPath.includes("/")
+          ? currentPath.substring(0, currentPath.lastIndexOf("/"))
+          : "";
+
+        const parentFolderId = folderCache.has(parentPath)
+          ? folderCache.get(parentPath)
+          : folderId;
+
+        const createdFolder = await createFolder(
           user.id,
-          folderId
+          directoryName,
+          parentFolderId
         );
 
-        uploadedFiles.push(uploadedFile);
-
-        try {
-          await createNotification({
-            userId: user.id,
-            type: "file_uploaded",
-            title: "File uploaded",
-            message: `"${uploadedFile.name}" was uploaded successfully.`,
-            relatedFileId: uploadedFile.id,
-          });
-        } catch (notificationError) {
-          console.error(
-            "Could not create upload notification:",
-            notificationError
-          );
-        }
+        folderCache.set(currentPath, createdFolder.id);
       }
+
+      targetFolderId = folderCache.get(currentPath);
+    }
+  }
+
+  const uploadedFile = await uploadFile(
+    file,
+    user.id,
+    targetFolderId
+  );
+
+  uploadedFiles.push(uploadedFile);
+
+  try {
+    await createNotification({
+      userId: user.id,
+      type: "file_uploaded",
+      title: "File uploaded",
+      message: `"${uploadedFile.name}" was uploaded successfully.`,
+      relatedFileId: uploadedFile.id,
+    });
+  } catch (notificationError) {
+    console.error(
+      "Could not create upload notification:",
+      notificationError
+    );
+  }
+}
 
       const updatedQuota = await getStorageQuota(user.id);
 
@@ -378,6 +552,41 @@ function UploadCard({ onUploadComplete, folderId = null, uploadTriggerRef }) {
   const activePreviewUrl =
     previewUrls[activeFileIndex] ?? "";
 
+  
+const groupedQueueItems = [];
+
+const groupIndexes = new Map();
+
+selectedFiles.forEach((file, index) => {
+  const relativePath =
+    fileRelativePathsRef.current.get(file) || "";
+
+  const pathParts = relativePath
+    .split("/")
+    .filter(Boolean);
+
+  const folderPath =
+    pathParts.length > 1
+      ? pathParts.slice(0, -1).join("/")
+      : "";
+
+  if (!groupIndexes.has(folderPath)) {
+    const group = {
+      folderPath,
+      files: [],
+    };
+
+    groupIndexes.set(folderPath, group);
+    groupedQueueItems.push(group);
+  }
+
+  groupIndexes.get(folderPath).files.push({
+    file,
+    index,
+  });
+});
+
+
   const renderPreview = () => {
     if (!activeFile) return null;
 
@@ -449,7 +658,11 @@ function UploadCard({ onUploadComplete, folderId = null, uploadTriggerRef }) {
         className={`upload-card ${
           isDragging ? "dragging" : ""
         }`}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => {
+  if (!uploading) {
+    setShowUploadOptions((current) => !current);
+  }
+}}
         onDragOver={handleDragOver}
         onDragEnter={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -472,7 +685,7 @@ function UploadCard({ onUploadComplete, folderId = null, uploadTriggerRef }) {
             {uploading
               ? "Uploading..."
               : isDragging
-              ? "Drop files here"
+              ? "Drop files or folders here"
               : "Upload files"}
           </strong>
 
@@ -481,12 +694,46 @@ function UploadCard({ onUploadComplete, folderId = null, uploadTriggerRef }) {
               ? "Please wait while your files are uploaded"
               : isDragging
               ? "Release to add files to your upload queue"
-              : "Drag & drop files here or click to browse"}
+              : "Drag & drop files or folders, or click to browse files"}
           </p>
         </div>
       </button>
 
-      <input
+      
+{showUploadOptions && (
+  <div className="upload-options-menu">
+    <button
+      type="button"
+      onClick={() => {
+        setShowUploadOptions(false);
+        fileInputRef.current?.click();
+      }}
+    >
+      <Upload size={18} />
+      <span>
+        <strong>Upload files</strong>
+        <small>Select one or multiple files</small>
+      </span>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        setShowUploadOptions(false);
+        folderInputRef.current?.click();
+      }}
+    >
+      <FolderUp size={18} />
+      <span>
+        <strong>Upload folder</strong>
+        <small>Include files and nested folders</small>
+      </span>
+    </button>
+  </div>
+)}
+
+
+<input
   ref={(element) => {
     fileInputRef.current = element;
 
@@ -495,7 +742,18 @@ function UploadCard({ onUploadComplete, folderId = null, uploadTriggerRef }) {
     }
   }}
   type="file"
+  multiple
   onChange={handleFileSelect}
+  hidden
+/>
+
+<input
+  ref={folderInputRef}
+  type="file"
+  webkitdirectory=""
+  directory=""
+  multiple
+  onChange={handleFolderSelect}
   hidden
 />
 
@@ -545,64 +803,76 @@ function UploadCard({ onUploadComplete, folderId = null, uploadTriggerRef }) {
             </div>
 
             <div className="upload-queue-layout">
-              <div className="upload-queue-list">
-                {selectedFiles.map((file, index) => (
-                  <button
-                    type="button"
-                    key={`${file.name}-${file.size}-${file.lastModified}`}
-                    className={`upload-queue-item ${
-                      index === activeFileIndex
-                        ? "active"
-                        : ""
-                    }`}
-                    onClick={() =>
-                      setActiveFileIndex(index)
-                    }
-                    disabled={uploading}
-                  >
-                    <span className="upload-queue-item-icon">
-                      {getFileIcon(file, 20)}
-                    </span>
+              
+<div className="upload-queue-list">
+  {groupedQueueItems.map((group) => (
+    <div
+      className="upload-queue-group"
+      key={group.folderPath || "__root__"}
+    >
+      {group.folderPath && (
+        <div className="upload-queue-folder">
+          <Folder size={16} />
+          <span title={group.folderPath}>
+            {group.folderPath}
+          </span>
+        </div>
+      )}
 
-                    <span className="upload-queue-item-info">
-                      <strong title={file.name}>
-                        {file.name}
-                      </strong>
+      {group.files.map(({ file, index }) => (
+        <button
+          type="button"
+          key={`${index}-${file.name}-${file.size}`}
+          className={`upload-queue-item ${
+            index === activeFileIndex ? "active" : ""
+          }`}
+          onClick={() => setActiveFileIndex(index)}
+          disabled={uploading}
+        >
+          <span className="upload-queue-item-icon">
+            {getFileIcon(file, 20)}
+          </span>
 
-                      <small>
-                        {formatStorage(file.size)}
-                      </small>
-                    </span>
+          <span className="upload-queue-item-info">
+            <strong title={file.name}>
+              {file.name}
+            </strong>
 
-                    <span
-                      className="upload-queue-item-remove"
-                      role="button"
-                      tabIndex={uploading ? -1 : 0}
-                      aria-label={`Remove ${file.name}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
+            <small>{formatStorage(file.size)}</small>
+          </span>
 
-                        if (!uploading) {
-                          removeFile(index);
-                        }
-                      }}
-                      onKeyDown={(event) => {
-                        if (
-                          !uploading &&
-                          (event.key === "Enter" ||
-                            event.key === " ")
-                        ) {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          removeFile(index);
-                        }
-                      }}
-                    >
-                      <X size={15} />
-                    </span>
-                  </button>
-                ))}
-              </div>
+          <span
+            className="upload-queue-item-remove"
+            role="button"
+            tabIndex={uploading ? -1 : 0}
+            aria-label={`Remove ${file.name}`}
+            onClick={(event) => {
+              event.stopPropagation();
+
+              if (!uploading) {
+                removeFile(index);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (
+                !uploading &&
+                (event.key === "Enter" ||
+                  event.key === " ")
+              ) {
+                event.preventDefault();
+                event.stopPropagation();
+                removeFile(index);
+              }
+            }}
+          >
+            <X size={15} />
+          </span>
+        </button>
+      ))}
+    </div>
+  ))}
+</div>
+
 
               <div className="upload-queue-preview">
                 {renderPreview()}

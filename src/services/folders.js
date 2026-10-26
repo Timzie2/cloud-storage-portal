@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import JSZip from "jszip";
 
 import {
   makeFileCopy,
@@ -438,7 +439,13 @@ export async function moveFolder(folderId, userId, destinationFolderId = null) {
 }
 
 
-export async function shareFolder(folder, ownerId, email) {
+
+export async function shareFolder(
+  folder,
+  ownerId,
+  email,
+  permissions = {}
+) {
   if (!folder?.id) {
     throw new Error("Folder is required.");
   }
@@ -447,7 +454,7 @@ export async function shareFolder(folder, ownerId, email) {
     throw new Error("Folder owner is required.");
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = email?.trim().toLowerCase();
 
   if (!normalizedEmail) {
     throw new Error("Email address is required.");
@@ -459,6 +466,9 @@ export async function shareFolder(folder, ownerId, email) {
       folder_id: folder.id,
       owner_id: ownerId,
       shared_with_email: normalizedEmail,
+      can_edit: permissions.can_edit ?? false,
+      can_download: permissions.can_download ?? true,
+      can_copy: permissions.can_copy ?? true,
     })
     .select()
     .single();
@@ -467,6 +477,7 @@ export async function shareFolder(folder, ownerId, email) {
 
   return data;
 }
+
 
 export async function getFolderShares(folderId) {
   if (!folderId) {
@@ -506,19 +517,22 @@ export async function getFolderSharesByOwner(ownerId) {
   const { data, error } = await supabase
     .from("folder_shares")
     .select(`
-      id,
-      folder_id,
-      owner_id,
-      shared_with_email,
-      created_at,
-      folders (
-        id,
-        name,
-        user_id,
-        parent_id,
-        created_at
-      )
-    `)
+  id,
+  folder_id,
+  owner_id,
+  shared_with_email,
+  created_at,
+  can_edit,
+  can_download,
+  can_copy,
+  folders (
+    id,
+    name,
+    user_id,
+    parent_id,
+    created_at
+  )
+`)
     .eq("owner_id", ownerId)
     .order("created_at", { ascending: false });
 
@@ -534,24 +548,29 @@ export async function getSharedFoldersWithMe(email) {
     throw new Error("Email address is required.");
   }
 
-  const { data, error } = await supabase
-    .from("folder_shares")
-    .select(`
+  
+const { data, error } = await supabase
+  .from("folder_shares")
+  .select(`
+    id,
+    folder_id,
+    owner_id,
+    shared_with_email,
+    created_at,
+    can_edit,
+    can_download,
+    can_copy,
+    folders (
       id,
-      folder_id,
-      owner_id,
-      shared_with_email,
-      created_at,
-      folders (
-        id,
-        name,
-        user_id,
-        parent_id,
-        created_at
-      )
-    `)
-    .eq("shared_with_email", normalizedEmail)
-    .order("created_at", { ascending: false });
+      name,
+      user_id,
+      parent_id,
+      created_at
+    )
+  `)
+  .eq("shared_with_email", normalizedEmail)
+  .order("created_at", { ascending: false });
+
 
   if (error) throw error;
 
@@ -583,10 +602,56 @@ export async function getSubfolders(parentFolderId) {
 export async function copySharedFolder(
   sourceFolder,
   userId,
-  destinationFolderId = null
+  destinationFolderId = null,
+  options = {}
 ) {
   if (!sourceFolder?.id || !userId) {
     throw new Error("Folder and user information are required.");
+  }
+
+    // Verify the signed-in user.
+  const {
+    data: { user: currentUser },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) throw authError;
+
+  if (!currentUser || currentUser.id !== userId) {
+    throw new Error("You must be signed in to copy this folder.");
+  }
+
+  const recipientEmail = currentUser.email?.trim().toLowerCase();
+
+  if (!recipientEmail) {
+    throw new Error("Your account email could not be verified.");
+  }
+
+  // Verify that this folder is shared with the user and copying is allowed.
+  
+let shareQuery = supabase
+  .from("folder_shares")
+  .select("id, can_copy")
+  .eq("folder_id", sourceFolder.id)
+  .eq("owner_id", sourceFolder.user_id)
+  .ilike("shared_with_email", recipientEmail);
+
+if (options.shareId) {
+  shareQuery = shareQuery.eq("id", options.shareId);
+}
+
+const { data: share, error: shareError } =
+  await shareQuery.maybeSingle();
+
+
+  if (shareError) throw shareError;
+
+  if (!share) {
+    throw new Error("You do not have permission to copy this shared folder.");
+  }
+
+  if (!share.can_copy) {
+    throw new Error("The owner has disabled copying for this folder.");
   }
 
   const copiedRoot = await createFolder(
@@ -608,7 +673,9 @@ export async function copySharedFolder(
       if (file.user_id === userId) {
         await makeFileCopy(file, userId, targetFolderId);
       } else {
-        await copySharedFile(file, userId, targetFolderId);
+        await copySharedFile(file, userId, targetFolderId, {
+  folderShareId: share.id,
+});
       }
 
       copiedFileCount += 1;
@@ -634,4 +701,94 @@ export async function copySharedFolder(
     copiedFolderCount,
     copiedFileCount,
   };
+}
+
+
+
+export async function downloadSharedFolderAsZip(sourceFolder) {
+  if (!sourceFolder?.id || !sourceFolder?.user_id) {
+    throw new Error("Folder information is required.");
+  }
+
+  const {
+    data: { user: currentUser },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) throw authError;
+
+  if (!currentUser) {
+    throw new Error("You must be signed in to download this folder.");
+  }
+
+  const recipientEmail = currentUser.email?.trim().toLowerCase();
+
+  if (!recipientEmail) {
+    throw new Error("Your account email could not be verified.");
+  }
+
+  let shareQuery = supabase
+    .from("folder_shares")
+    .select("id, can_download")
+    .eq("folder_id", sourceFolder.id)
+    .eq("owner_id", sourceFolder.user_id)
+    .ilike("shared_with_email", recipientEmail);
+
+  if (sourceFolder.share_id) {
+    shareQuery = shareQuery.eq("id", sourceFolder.share_id);
+  }
+
+  const { data: share, error: shareError } =
+    await shareQuery.maybeSingle();
+
+  if (shareError) throw shareError;
+
+  if (!share) {
+    throw new Error("You do not have permission to download this folder.");
+  }
+
+  if (!share.can_download) {
+    throw new Error("The owner has disabled downloading for this folder.");
+  }
+
+  const zip = new JSZip();
+
+  async function addFolderContents(folderId, zipFolder) {
+    const [subfolders, files] = await Promise.all([
+      getSubfolders(folderId),
+      getFilesInFolder(folderId),
+    ]);
+
+    for (const file of files) {
+      if (!file.storage_path) continue;
+
+      const { data: blob, error: downloadError } =
+        await supabase.storage
+          .from("user-files")
+          .download(file.storage_path);
+
+      if (downloadError) throw downloadError;
+
+      zipFolder.file(file.name, blob);
+    }
+
+    for (const subfolder of subfolders) {
+      const nestedZipFolder = zipFolder.folder(subfolder.name);
+      await addFolderContents(subfolder.id, nestedZipFolder);
+    }
+  }
+
+  await addFolderContents(sourceFolder.id, zip.folder(sourceFolder.name));
+
+  const zipBlob = await zip.generateAsync({ type: "blob" });
+  const downloadUrl = URL.createObjectURL(zipBlob);
+  const link = document.createElement("a");
+
+  link.href = downloadUrl;
+  link.download = `${sourceFolder.name}.zip`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
 }

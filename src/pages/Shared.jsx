@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import JSZip from "jszip";
 import {
   File,
   Image,
@@ -39,6 +40,7 @@ import {
   getSubfolders,
   copySharedFolder,
   getUserFolders,
+  downloadSharedFolderAsZip,
 } from "../services/folders";
 
 
@@ -124,6 +126,88 @@ function Shared() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [fileError, setFileError] = useState("");
+  const [fileErrorExiting, setFileErrorExiting] = useState(false);
+  const [folderError, setFolderError] = useState("");
+  const [folderErrorExiting, setFolderErrorExiting] = useState(false);
+  const [openedFolderError, setOpenedFolderError] = useState("");
+  const [openedFolderErrorExiting, setOpenedFolderErrorExiting] =
+  useState(false);
+
+
+
+useEffect(() => {
+  if (!fileError) {
+    setFileErrorExiting(false);
+    return;
+  }
+
+  setFileErrorExiting(false);
+
+  const exitTimer = setTimeout(() => {
+    setFileErrorExiting(true);
+  }, 3700);
+
+  const removeTimer = setTimeout(() => {
+    setFileError("");
+    setFileErrorExiting(false);
+  }, 4100);
+
+  return () => {
+    clearTimeout(exitTimer);
+    clearTimeout(removeTimer);
+  };
+}, [fileError]);
+
+
+useEffect(() => {
+  if (!folderError) {
+    setFolderErrorExiting(false);
+    return;
+  }
+
+  setFolderErrorExiting(false);
+
+  const exitTimer = setTimeout(() => {
+    setFolderErrorExiting(true);
+  }, 3700);
+
+  const removeTimer = setTimeout(() => {
+    setFolderError("");
+    setFolderErrorExiting(false);
+  }, 4100);
+
+  return () => {
+    clearTimeout(exitTimer);
+    clearTimeout(removeTimer);
+  };
+}, [folderError]);
+
+useEffect(() => {
+  if (!openedFolderError) {
+    setOpenedFolderErrorExiting(false);
+    return;
+  }
+
+  setOpenedFolderErrorExiting(false);
+
+  const exitTimer = setTimeout(() => {
+    setOpenedFolderErrorExiting(true);
+  }, 3700);
+
+  const removeTimer = setTimeout(() => {
+    setOpenedFolderError("");
+    setOpenedFolderErrorExiting(false);
+  }, 4100);
+
+  return () => {
+    clearTimeout(exitTimer);
+    clearTimeout(removeTimer);
+  };
+}, [openedFolderError]);
+
+
+
 
   const [revokeTarget, setRevokeTarget] = useState(null);
 
@@ -167,8 +251,12 @@ async function loadShares() {
   }
 }
 
+
 async function openSharedFolder(folder, isChild = false) {
   if (!folder?.id) return;
+
+  setOpenedFolderError("");
+  setOpenedFolderErrorExiting(false);
 
   try {
     setSharedFolderLoading(true);
@@ -183,15 +271,49 @@ async function openSharedFolder(folder, isChild = false) {
       setSharedFolderHistory([]);
     }
 
-    setCurrentSharedFolder(folder);
+    // Preserve the original share's permissions while navigating
+    // into nested folders.
+    const rootShare = isChild
+      ? currentSharedFolder
+      : foldersSharedWithMe.find(
+          (share) => share.folder_id === folder.id
+        );
+
+    const folderWithPermissions = {
+      ...folder,
+      share_id: rootShare?.share_id || rootShare?.id || folder.share_id,
+      can_copy: rootShare?.can_copy ?? folder.can_copy ?? false,
+      can_download:
+        rootShare?.can_download ?? folder.can_download ?? false,
+      can_edit: rootShare?.can_edit ?? folder.can_edit ?? false,
+    };
+
+    setCurrentSharedFolder(folderWithPermissions);
 
     const [subfolders, files] = await Promise.all([
       getSubfolders(folder.id),
       getFilesInFolder(folder.id),
     ]);
 
-    setSharedFolderFolders(subfolders);
-    setSharedFolderFiles(files);
+    setSharedFolderFolders(
+  subfolders.map((subfolder) => ({
+    ...subfolder,
+    folder_share_id: folderWithPermissions.share_id,
+    can_copy: folderWithPermissions.can_copy,
+    can_download: folderWithPermissions.can_download,
+    can_edit: folderWithPermissions.can_edit,
+  }))
+);
+
+setSharedFolderFiles(
+  files.map((file) => ({
+    ...file,
+    folder_share_id: folderWithPermissions.share_id,
+    can_copy: folderWithPermissions.can_copy,
+    can_download: folderWithPermissions.can_download,
+    can_edit: folderWithPermissions.can_edit,
+  }))
+);
   } catch (err) {
     console.error("Error opening shared folder:", err);
     setSharedFolderFolders([]);
@@ -203,6 +325,7 @@ async function openSharedFolder(folder, isChild = false) {
     setSharedFolderLoading(false);
   }
 }
+
 
 async function goBackSharedFolder() {
   if (sharedFolderHistory.length === 0) {
@@ -339,7 +462,11 @@ async function confirmCopy() {
     setError("");
 
     if (type === "file") {
-      await copySharedFile(item, user.id, destinationFolderId);
+      await copySharedFile(item, user.id, destinationFolderId,
+  item.folder_share_id
+    ? { folderShareId: item.folder_share_id }
+    : { shareId: item.share_id }
+);
       setCopyMessage(
         `"${item.name}" was copied to ${
           destinationFolderId
@@ -351,10 +478,13 @@ async function confirmCopy() {
       );
     } else {
       const result = await copySharedFolder(
-        item,
-        user.id,
-        destinationFolderId
-      );
+  item,
+  user.id,
+  destinationFolderId,
+  {
+    shareId: item.share_id,
+  }
+);
 
       setCopyMessage(
         `"${item.name}" was copied successfully, including ${
@@ -392,27 +522,6 @@ async function handleFolderRevoke() {
   }
 }
 
-async function openCopyModal(item, type) {
-  if (!item || !user?.id) return;
-
-  setCopyTarget({ item, type });
-  setSelectedDestination("");
-  setDestinationFolders([]);
-  setLoadingDestinations(true);
-  setCopyMessage("");
-  setError("");
-
-  try {
-    const folders = await getUserFolders(user.id);
-    setDestinationFolders(folders ?? []);
-  } catch (err) {
-    console.error("Error loading destination folders:", err);
-    setError("Could not load your folders. Please try again.");
-  } finally {
-    setLoadingDestinations(false);
-  }
-}
-
 
   return (
     <main className="dashboard shared-page">
@@ -428,12 +537,6 @@ async function openCopyModal(item, type) {
             Files shared by you and with you.
           </p>
         </div>
-
-        {error && (
-          <div className="shared-error">
-            {error}
-          </div>
-        )}
 
         {copyMessage && (
   <div className="shared-success" role="status">
@@ -454,7 +557,7 @@ async function openCopyModal(item, type) {
               </div>
 
               <div>
-                <h2>Shared by you</h2>
+                <h2>Files shared by you</h2>
                 <p>
                   Files you've shared with other people.
                 </p>
@@ -639,20 +742,36 @@ async function openCopyModal(item, type) {
         <UserRound size={18} />
       </div>
 
-      <div>
-        <h2>
-          {currentSharedFolder
-            ? currentSharedFolder.name
-            : "Folders shared with you"}
-        </h2>
+      <div className="shared-folder-heading">
+  <h2>
+    {currentSharedFolder
+      ? currentSharedFolder.name
+      : "Folders shared with you"}
+  </h2>
 
-        <p>
-          {currentSharedFolder
-            ? "Browse the folders and files shared with you."
-            : "Folders other people have shared with your account."}
-        </p>
-      </div>
+  <p>
+    {currentSharedFolder
+      ? "Browse the folders and files shared with you."
+      : "Folders other people have shared with your account."}
+  </p>
+
+  {!currentSharedFolder && folderError && (
+    <div
+      className={`shared-error ${
+        folderErrorExiting
+          ? "shared-error-exit"
+          : "shared-error-visible"
+      }`}
+      role="alert"
+    >
+      <span className="shared-error-icon">!</span>
+      <span>{folderError}</span>
     </div>
+  )}
+</div>
+
+      </div>
+  
 
     <span className="shared-count">
       {currentSharedFolder
@@ -681,6 +800,17 @@ async function openCopyModal(item, type) {
         <ChevronLeft size={17} />
         Back
       </button>
+
+      {openedFolderError && (
+  <div
+    className={`shared-error ${
+      openedFolderErrorExiting ? "exiting" : ""
+    }`}
+    role="alert"
+  >
+    {openedFolderError}
+  </div>
+)}
 
       {sharedFolderLoading ? (
         <NovaLoader message="Opening shared folder..." />
@@ -757,29 +887,59 @@ async function openCopyModal(item, type) {
                 </div>
 
                 <div className="shared-item-actions">
-                  <button
-                    type="button"
-                    className="shared-action-btn"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleDownload(file);
-                    }}
-                    title="Download"
-                  >
-                    <Download size={17} />
-                  </button>
                   
                   <button
   className="shared-action-btn"
-  onClick={(event) => {
-    event.stopPropagation();
-    handleCopySharedFile(file);
-  }}
-  disabled={copyingItem === file?.id}
-  title="Add to My Files"
+ 
+onClick={(event) => {
+  event.stopPropagation();
+
+  if (!currentSharedFolder?.can_copy) {
+    setOpenedFolderError(
+  "The owner has disabled copying for this folder."
+);
+    return;
+  }
+
+  setOpenedFolderError("");
+  handleCopySharedFile(file);
+}}
+title={
+  !currentSharedFolder?.can_copy
+    ? "The owner has disabled copying"
+    : "Add to My Files"
+}
+
 >
   <Copy size={17} />
 </button>
+
+<button
+                    type="button"
+                    className="shared-action-btn"
+                    
+onClick={(event) => {
+  event.stopPropagation();
+
+  if (!currentSharedFolder?.can_download) {
+    setOpenedFolderError(
+  "The owner has disabled downloading for this folder."
+);
+    return;
+  }
+
+  setOpenedFolderError("");
+  handleDownload(file);
+}}
+title={
+  !currentSharedFolder?.can_download
+    ? "The owner has disabled downloading"
+    : "Download"
+}
+
+                  >
+                    <Download size={17} />
+                  </button>
 
                 </div>
               </div>
@@ -842,18 +1002,77 @@ async function openCopyModal(item, type) {
           </button>
 
           <div className="shared-item-actions">
-            <button
-              type="button"
-              className="shared-action-btn"
-              onClick={(event) => {
-                event.stopPropagation();
-                handleCopySharedFolder(share.folders);
-              }}
-              disabled={copyingItem === share.folders?.id || !share.folders}
-              title="Add folder to My Files"
-            >
-              <Copy size={17} />
-            </button>
+            
+
+<button
+  type="button"
+  className="shared-action-btn"
+  onClick={(event) => {
+    event.stopPropagation();
+
+    if (!share.can_copy) {
+  setFolderError("The owner has disabled copying for this folder.");
+  return;
+}
+
+setFolderError("");
+
+    handleCopySharedFolder({
+      ...share.folders,
+      share_id: share.id,
+      can_copy: share.can_copy,
+    });
+  }}
+  disabled={copyingItem === share.folders?.id || !share.folders}
+  title={
+    !share.can_copy
+      ? "The owner has disabled copying"
+      : "Add folder to My Files"
+  }
+>
+  <Copy size={17} />
+</button>
+
+
+<button
+  type="button"
+  className="shared-action-btn"
+  onClick={async (event) => {
+    event.stopPropagation();
+
+    if (!share.can_download) {
+  setFolderError("The owner has disabled downloading for this folder.");
+  return;
+}
+
+setFolderError("");
+
+    try {
+      setCopyingItem(share.folders?.id);
+
+      await downloadSharedFolderAsZip({
+        ...share.folders,
+        share_id: share.id,
+      });
+    } catch (err) {
+  console.error("Folder download error:", err);
+  setFolderError(err.message || "Could not download this folder.");
+} finally {
+      setCopyingItem(null);
+    }
+  }}
+  disabled={copyingItem === share.folders?.id || !share.folders}
+  title={
+    !share.can_download
+      ? "The owner has disabled downloading"
+      : "Download folder as ZIP"
+  }
+>
+  <Download size={17} />
+</button>
+
+
+
           </div>
         </div>
 
@@ -877,7 +1096,7 @@ async function openCopyModal(item, type) {
               </div>
 
               <div>
-                <h2>Shared with you</h2>
+                <h2>Files shared with you</h2>
                 <p>
                   Files other people have shared with you.
                 </p>
@@ -891,6 +1110,26 @@ async function openCopyModal(item, type) {
               </span>
             </span>
           </div>
+
+          
+
+
+{fileError && (
+  <div
+    className={`shared-error ${
+      fileErrorExiting
+        ? "shared-error-exit"
+        : "shared-error-visible"
+    }`}
+    role="alert"
+  >
+    <span className="shared-error-icon">!</span>
+    <span>{fileError}</span>
+  </div>
+)}
+
+
+
 
           {sharedWithMe.length === 0 ? (
             <div className="shared-empty">
@@ -956,30 +1195,62 @@ async function openCopyModal(item, type) {
                     </div>
 
                     <div className="shared-item-actions">
-                      <button
-                        className="shared-action-btn"
-                        onClick={(event) => {
-  event.stopPropagation();
-  handleDownload(file);
-}}
-                        title="Download"
-                      >
-                        <Download size={17} />
-                      </button>
-
                       
+
 <button
   type="button"
   className="shared-action-btn"
   onClick={(event) => {
-  event.stopPropagation();
-  handleCopySharedFile(file);
-}}
-  disabled={copyingItem === file?.id}
-  title="Add to My Files"
+    event.stopPropagation();
+
+    if (!share.can_copy) {
+      setFileError("The owner has disabled copying for this file.");
+      return;
+    }
+
+    setFileError("");
+    handleCopySharedFile({
+      ...file,
+      share_id: share.id,
+      can_copy: share.can_copy,
+    });
+  }}
+  disabled={copyingItem === file?.id || !file}
+  title={
+    !share.can_copy
+      ? "The owner has disabled copying"
+      : "Add to My Files"
+  }
 >
   <Copy size={17} />
 </button>
+
+<button
+  type="button"
+  className="shared-action-btn"
+  onClick={(event) => {
+    event.stopPropagation();
+
+    if (!share.can_download) {
+  setFileError("The owner has disabled downloading for this file.");
+  return;
+}
+
+setFileError("");
+
+    handleDownload(file);
+  }}
+  disabled={copyingItem === file?.id}
+  title={
+    !share.can_download
+      ? "The owner has disabled downloading"
+      : "Download"
+  }
+>
+  <Download size={17} />
+</button>
+
+
 
                     </div>
                   </div>

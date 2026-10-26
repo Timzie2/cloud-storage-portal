@@ -181,7 +181,13 @@ export async function permanentlyDeleteFile(file) {
   }
 }
 
-export async function shareFile(file, ownerId, email) {
+
+export async function shareFile(
+  file,
+  ownerId,
+  email,
+  permissions = {}
+) {
   if (!file?.id || !ownerId || !email) {
     throw new Error("File, owner, and email are required.");
   }
@@ -194,6 +200,9 @@ export async function shareFile(file, ownerId, email) {
       file_id: file.id,
       owner_id: ownerId,
       shared_with_email: normalizedEmail,
+      can_edit: permissions.can_edit ?? false,
+      can_download: permissions.can_download ?? true,
+      can_copy: permissions.can_copy ?? true,
     })
     .select()
     .single();
@@ -205,6 +214,7 @@ export async function shareFile(file, ownerId, email) {
   return data;
 }
 
+
 export async function getFileShares(ownerId) {
   if (!ownerId) {
     throw new Error("Owner ID is required.");
@@ -213,19 +223,22 @@ export async function getFileShares(ownerId) {
   const { data, error } = await supabase
     .from("file_shares")
     .select(`
-      id,
-      file_id,
-      owner_id,
-      shared_with_email,
-      created_at,
-      files (
-        id,
-        name,
-        mime_type,
-        size_bytes,
-        storage_path
-      )
-    `)
+  id,
+  file_id,
+  owner_id,
+  shared_with_email,
+  can_edit,
+  can_download,
+  can_copy,
+  created_at,
+  files (
+    id,
+    name,
+    mime_type,
+    size_bytes,
+    storage_path
+  )
+`)
     .eq("owner_id", ownerId)
     .order("created_at", { ascending: false });
 
@@ -251,6 +264,7 @@ export async function revokeShare(shareId) {
   }
 }
 
+
 export async function getSharedWithMe(email) {
   if (!email) throw new Error("Email is required.");
 
@@ -264,12 +278,17 @@ export async function getSharedWithMe(email) {
       owner_id,
       shared_with_email,
       created_at,
+      can_edit,
+      can_download,
+      can_copy,
       files (
         id,
+        user_id,
         name,
+        storage_path,
         mime_type,
         size_bytes,
-        storage_path,
+        folder_id,
         created_at
       )
     `)
@@ -280,6 +299,7 @@ export async function getSharedWithMe(email) {
 
   return data ?? [];
 }
+
 
 export async function getSharedFileCount(ownerId) {
   if (!ownerId) {
@@ -439,7 +459,13 @@ export async function makeFileCopy(file, userId, destinationFolderId = null) {
 }
 
 
-export async function copySharedFile(file, userId, destinationFolderId = null) {
+
+export async function copySharedFile(
+  file,
+  userId,
+  destinationFolderId = null,
+  options = {}
+) {
   if (!file?.id || !file?.storage_path || !userId) {
     throw new Error("File and user information are required.");
   }
@@ -448,6 +474,70 @@ export async function copySharedFile(file, userId, destinationFolderId = null) {
     throw new Error("Use makeFileCopy for files you own.");
   }
 
+  // Verify that this user has an active share allowing copies.
+  const { data: { user: currentUser }, error: authError } =
+  await supabase.auth.getUser();
+
+if (authError) throw authError;
+
+if (!currentUser || currentUser.id !== userId) {
+  throw new Error("You must be signed in to copy this file.");
+}
+
+const recipientEmail = currentUser.email?.trim().toLowerCase();
+
+if (!recipientEmail) {
+  throw new Error("Your account email could not be verified.");
+}
+
+let canCopy = false;
+
+if (options.folderShareId) {
+  // The file is being copied through an authorized folder share.
+  const { data: folderShare, error: folderShareError } = await supabase
+    .from("folder_shares")
+    .select("id, can_copy")
+    .eq("id", options.folderShareId)
+    .ilike("shared_with_email", recipientEmail)
+    .maybeSingle();
+
+  if (folderShareError) throw folderShareError;
+
+  if (!folderShare) {
+    throw new Error("You do not have permission to copy this shared folder.");
+  }
+
+  canCopy = folderShare.can_copy;
+} else {
+  // The file is being copied through its individual share.
+  let shareQuery = supabase
+  .from("file_shares")
+  .select("id, can_copy")
+  .eq("file_id", file.id)
+  .eq("owner_id", file.user_id)
+  .ilike("shared_with_email", recipientEmail);
+
+if (options.shareId) {
+  shareQuery = shareQuery.eq("id", options.shareId);
+}
+
+const { data: share, error: shareError } =
+  await shareQuery.maybeSingle();
+
+  if (shareError) throw shareError;
+
+  if (!share) {
+    throw new Error("You do not have permission to copy this shared file.");
+  }
+
+  canCopy = share.can_copy;
+}
+
+if (!canCopy) {
+  throw new Error("The owner has disabled copying.");
+}
+
+  // Check available storage before copying.
   const { getStorageQuota } = await import("./storageQuota");
   const quota = await getStorageQuota(userId);
   const fileSize = Number(file.size_bytes) || 0;
@@ -459,6 +549,7 @@ export async function copySharedFile(file, userId, destinationFolderId = null) {
     throw new Error("Not enough storage space to copy this file.");
   }
 
+  // Preserve the file extension.
   const lastDot = file.name.lastIndexOf(".");
   const hasExtension = lastDot > 0;
   const baseName = hasExtension
@@ -479,7 +570,7 @@ export async function copySharedFile(file, userId, destinationFolderId = null) {
 
   if (downloadError) throw downloadError;
 
-  // Upload a separate copy into the recipient's storage path.
+  // Upload an independent copy to the recipient's storage.
   const { error: uploadError } = await supabase.storage
     .from(BUCKET_NAME)
     .upload(newStoragePath, blob, {
@@ -515,11 +606,15 @@ export async function copySharedFile(file, userId, destinationFolderId = null) {
         relatedFileId: data.id,
       });
     } catch (notificationError) {
-      console.error("Could not create copy notification:", notificationError);
+      console.error(
+        "Could not create copy notification:",
+        notificationError
+      );
     }
 
     return data;
   } catch (error) {
+    // Remove the uploaded copy if the database insert fails.
     const { error: cleanupError } = await supabase.storage
       .from(BUCKET_NAME)
       .remove([newStoragePath]);
@@ -531,6 +626,7 @@ export async function copySharedFile(file, userId, destinationFolderId = null) {
     throw error;
   }
 }
+
 
 
 

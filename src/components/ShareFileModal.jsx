@@ -1,12 +1,79 @@
-import { useState } from "react";
+
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { shareFile } from "../services/files";
+import {
+  shareFile,
+  getFileShares,
+  revokeShare,
+} from "../services/files";
 
 function ShareFileModal({ file, onClose, onShared }) {
   const { user } = useAuth();
 
   const [shareEmail, setShareEmail] = useState("");
   const [sharing, setSharing] = useState(false);
+  const [shares, setShares] = useState([]);
+  const [loadingShares, setLoadingShares] = useState(true);
+  const [revokingId, setRevokingId] = useState(null);
+
+  const [permissions, setPermissions] = useState({
+    can_edit: false,
+    can_download: true,
+    can_copy: true,
+  });
+
+  const handlePermissionChange = (permission) => {
+    setPermissions((current) => ({
+      ...current,
+      [permission]: !current[permission],
+    }));
+  };
+
+  const loadShares = async () => {
+  if (!file?.id || !user?.id) return;
+
+  try {
+    setLoadingShares(true);
+    const data = await getFileShares(user.id);
+
+    setShares(
+      data.filter((share) => share.file_id === file.id)
+    );
+  } catch (error) {
+    console.error("Failed to load file shares:", error);
+    alert("Could not load sharing details.");
+  } finally {
+    setLoadingShares(false);
+  }
+};
+
+const handleRevoke = async (shareId) => {
+  const confirmed = window.confirm(
+    "Remove this person's access to the file?"
+  );
+
+  if (!confirmed) return;
+
+  try {
+    setRevokingId(shareId);
+
+    await revokeShare(shareId);
+    await loadShares();
+
+    onShared?.();
+  } catch (error) {
+    console.error("Revoke file share error:", error);
+    alert("Could not remove access. Please try again.");
+  } finally {
+    setRevokingId(null);
+  }
+};
+
+useEffect(() => {
+  if (file?.id && user?.id) {
+    loadShares();
+  }
+}, [file?.id, user?.id]);
 
   const handleShareSubmit = async (event) => {
     event.preventDefault();
@@ -25,7 +92,7 @@ function ShareFileModal({ file, onClose, onShared }) {
     setSharing(true);
 
     try {
-      await shareFile(file, user.id, email);
+      await shareFile(file, user.id, email, permissions);
 
       alert(`"${file.name}" was shared with ${email}.`);
 
@@ -43,6 +110,12 @@ function ShareFileModal({ file, onClose, onShared }) {
     if (sharing) return;
 
     setShareEmail("");
+    setPermissions({
+      can_edit: false,
+      can_download: true,
+      can_copy: true,
+    });
+
     onClose();
   };
 
@@ -111,6 +184,66 @@ function ShareFileModal({ file, onClose, onShared }) {
             to share this file with.
           </p>
 
+          <div className="share-permissions">
+            <h3>Permissions</h3>
+
+            <label className="share-permission-option">
+              <input
+                type="checkbox"
+                checked={permissions.can_edit}
+                onChange={() =>
+                  handlePermissionChange("can_edit")
+                }
+                disabled={sharing}
+              />
+
+              <span>
+                <strong>Allow editing</strong>
+                <small>
+                  Let the recipient edit this document when
+                  collaborative editing is available.
+                </small>
+              </span>
+            </label>
+
+            <label className="share-permission-option">
+              <input
+                type="checkbox"
+                checked={permissions.can_download}
+                onChange={() =>
+                  handlePermissionChange("can_download")
+                }
+                disabled={sharing}
+              />
+
+              <span>
+                <strong>Allow downloading</strong>
+                <small>
+                  Let the recipient download the shared file.
+                </small>
+              </span>
+            </label>
+
+            <label className="share-permission-option">
+              <input
+                type="checkbox"
+                checked={permissions.can_copy}
+                onChange={() =>
+                  handlePermissionChange("can_copy")
+                }
+                disabled={sharing}
+              />
+
+              <span>
+                <strong>Allow copying to My Files</strong>
+                <small>
+                  Let the recipient save an independent copy
+                  in their own files.
+                </small>
+              </span>
+            </label>
+          </div>
+
           <div className="share-modal-actions">
             <button
               type="button"
@@ -130,6 +263,41 @@ function ShareFileModal({ file, onClose, onShared }) {
             </button>
           </div>
         </form>
+
+        
+<div className="folder-shares-list">
+  <h3>People with access</h3>
+
+  {loadingShares ? (
+    <p>Loading...</p>
+  ) : shares.length === 0 ? (
+    <p>This file hasn't been shared yet.</p>
+  ) : (
+    shares.map((share) => (
+      <div className="folder-share-row" key={share.id}>
+        <div>
+          <span>{share.shared_with_email}</span>
+          <small style={{ display: "block", marginTop: "6px" }}>
+            {share.can_edit ? "Can edit" : "View only"}
+            {" · "}
+            {share.can_download ? "Can download" : "No downloading"}
+            {" · "}
+            {share.can_copy ? "Can copy" : "No copying"}
+          </small>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => handleRevoke(share.id)}
+          disabled={revokingId === share.id}
+        >
+          {revokingId === share.id ? "Removing..." : "Remove"}
+        </button>
+      </div>
+    ))
+  )}
+</div>
+
       </div>
     </div>
   );

@@ -27,6 +27,7 @@ import {
   X,
   Ellipsis,
   Info,
+  ArrowLeft,
 } from "lucide-react";
 
 
@@ -151,6 +152,8 @@ function Files() {
   const [currentFolderId, setCurrentFolderId] = useState(null);
   const [openFolderMenu, setOpenFolderMenu] = useState(null);
   const [folderMenuPosition, setFolderMenuPosition] = useState(null);
+  const [folderDownloadProgress, setFolderDownloadProgress] = useState(null);
+
   
 
   
@@ -319,59 +322,81 @@ useEffect(() => {
    * Keep the floating menu positioned correctly
    * when the page is resized or scrolled.
    */
-  useEffect(() => {
-    if (!openMenu) return;
+  
 
-    const updateMenuPosition = () => {
-      if (!activeButtonRef.current) return;
+useEffect(() => {
+  if (!openMenu) return;
 
-      const rect = activeButtonRef.current.getBoundingClientRect();
+  const updateMenuPosition = () => {
+    const button = activeButtonRef.current;
+    if (!button) return;
 
-      const menuWidth = 150;
-      const menuHeight = 176;
-      const gap = 6;
-      const screenPadding = 8;
+    const rect = button.getBoundingClientRect();
+    const isMobile = window.innerWidth <= 768;
+    const padding = 8;
+    const gap = 6;
+    const menuWidth = Math.min(232, window.innerWidth - padding * 2);
+    const safeBottom = window.innerHeight - (isMobile ? 76 : padding);
 
-      let left = rect.right - menuWidth;
+    const menuHeight = Math.min(
+      menuRef.current?.scrollHeight || 390,
+      safeBottom - padding * 2
+    );
 
-      if (left < screenPadding) {
-        left = screenPadding;
-      }
+    let left = rect.right - menuWidth;
+    left = Math.max(
+      padding,
+      Math.min(left, window.innerWidth - menuWidth - padding)
+    );
 
-      if (left + menuWidth > window.innerWidth - screenPadding) {
-        left = window.innerWidth - menuWidth - screenPadding;
-      }
+    const spaceBelow = safeBottom - rect.bottom - gap;
+    const spaceAbove = rect.top - padding - gap;
 
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
+    const openUpward =
+      spaceBelow < menuHeight && spaceAbove > spaceBelow;
 
-      let top;
+    let top = openUpward
+      ? rect.top - menuHeight - gap
+      : rect.bottom + gap;
 
+    top = Math.max(
+      padding,
+      Math.min(top, safeBottom - menuHeight - padding)
+    );
+
+    const nextPosition = {
+      top,
+      left,
+      maxHeight: Math.max(120, safeBottom - top - padding),
+    };
+
+    setMenuPosition((previous) => {
       if (
-        spaceBelow >= menuHeight + gap ||
-        spaceBelow >= spaceAbove
+        previous &&
+        Math.abs(previous.top - nextPosition.top) < 1 &&
+        Math.abs(previous.left - nextPosition.left) < 1 &&
+        Math.abs(previous.maxHeight - nextPosition.maxHeight) < 1
       ) {
-        top = rect.bottom + gap;
-      } else {
-        top = rect.top - menuHeight - gap;
+        return previous;
       }
 
-      setMenuPosition({
-        top,
-        left,
-      });
-    };
+      return nextPosition;
+    });
+  };
 
-    updateMenuPosition();
+  const frame = requestAnimationFrame(updateMenuPosition);
 
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", updateMenuPosition, true);
+  window.addEventListener("resize", updateMenuPosition);
+  window.addEventListener("scroll", updateMenuPosition, true);
 
-    return () => {
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
-    };
-  }, [openMenu]);
+  return () => {
+    cancelAnimationFrame(frame);
+    window.removeEventListener("resize", updateMenuPosition);
+    window.removeEventListener("scroll", updateMenuPosition, true);
+  };
+}, [openMenu, menuPosition]);
+
+
 
   const filteredFiles = useMemo(() => {
     let result = [...files];
@@ -1092,6 +1117,191 @@ const handleConfirmBulkMoveFolders = async () => {
     }
   };
 
+  
+
+const handleDownloadFolder = async (folder) => {
+  setOpenFolderMenu(null);
+  setFolderMenuPosition(null);
+
+  const failedFiles = [];
+
+  try {
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+
+    const getFolderAndDescendantIds = (folderId) => {
+      const descendantIds = new Set([folderId]);
+      let foundNewFolder = true;
+
+      while (foundNewFolder) {
+        foundNewFolder = false;
+
+        folders.forEach((item) => {
+          if (
+            descendantIds.has(item.parent_id) &&
+            !descendantIds.has(item.id)
+          ) {
+            descendantIds.add(item.id);
+            foundNewFolder = true;
+          }
+        });
+      }
+
+      return descendantIds;
+    };
+
+    const getRelativeFolderPath = (childFolder) => {
+      const path = [];
+      let current = childFolder;
+
+      while (current && current.id !== folder.id) {
+        path.unshift(current.name);
+
+        current = current.parent_id
+          ? folders.find((item) => item.id === current.parent_id)
+          : null;
+      }
+
+      return path.join("/");
+    };
+
+    const folderIds = getFolderAndDescendantIds(folder.id);
+
+    const foldersToInclude = folders.filter((item) =>
+      folderIds.has(item.id)
+    );
+
+    const filesToDownload = files.filter((file) =>
+      folderIds.has(file.folder_id)
+    );
+
+    setFolderDownloadProgress({
+      folderName: folder.name,
+      stage: "downloading",
+      totalFiles: filesToDownload.length,
+      completedFiles: 0,
+      failedFiles: [],
+      percent: 0,
+    });
+
+    // Add every subfolder, including empty folders.
+    foldersToInclude.forEach((item) => {
+      if (item.id === folder.id) return;
+
+      const relativePath = getRelativeFolderPath(item);
+
+      if (relativePath) {
+        zip.folder(relativePath);
+      }
+    });
+
+    // Ensure an entirely empty folder still produces a meaningful ZIP.
+    if (filesToDownload.length === 0 && foldersToInclude.length === 1) {
+      zip.folder(folder.name);
+    }
+
+    for (let i = 0; i < filesToDownload.length; i++) {
+      const file = filesToDownload[i];
+
+      try {
+        const { data, error } = await supabase.storage
+          .from("user-files")
+          .download(file.storage_path);
+
+        if (error || !data) {
+          throw error || new Error("No file data was returned.");
+        }
+
+        const parentFolder = folders.find(
+          (item) => item.id === file.folder_id
+        );
+
+        const relativeFolderPath =
+          parentFolder && parentFolder.id !== folder.id
+            ? getRelativeFolderPath(parentFolder)
+            : "";
+
+        const relativePath = relativeFolderPath
+          ? `${relativeFolderPath}/${file.name}`
+          : file.name;
+
+        zip.file(relativePath, data);
+      } catch (error) {
+        console.error(`Could not download ${file.name}:`, error);
+        failedFiles.push(file.name);
+      }
+
+      setFolderDownloadProgress({
+        folderName: folder.name,
+        stage: "downloading",
+        totalFiles: filesToDownload.length,
+        completedFiles: i + 1,
+        failedFiles: [...failedFiles],
+        percent:
+          filesToDownload.length > 0
+            ? Math.round(((i + 1) / filesToDownload.length) * 90)
+            : 90,
+      });
+    }
+
+    setFolderDownloadProgress({
+      folderName: folder.name,
+      stage: "zipping",
+      totalFiles: filesToDownload.length,
+      completedFiles: filesToDownload.length,
+      failedFiles: [...failedFiles],
+      percent: 90,
+    });
+
+    const blob = await zip.generateAsync(
+      { type: "blob" },
+      (metadata) => {
+        setFolderDownloadProgress({
+          folderName: folder.name,
+          stage: "zipping",
+          totalFiles: filesToDownload.length,
+          completedFiles: filesToDownload.length,
+          failedFiles: [...failedFiles],
+          percent: 90 + Math.round(metadata.percent / 10),
+        });
+      }
+    );
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `${folder.name}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
+
+    setFolderDownloadProgress({
+      folderName: folder.name,
+      stage: "complete",
+      totalFiles: filesToDownload.length,
+      completedFiles: filesToDownload.length,
+      failedFiles: [...failedFiles],
+      percent: 100,
+    });
+  } catch (error) {
+    console.error("Folder download error:", error);
+
+    setFolderDownloadProgress({
+      folderName: folder.name,
+      stage: "error",
+      totalFiles: 0,
+      completedFiles: 0,
+      failedFiles: [...failedFiles],
+      percent: 0,
+      message: "Could not create the ZIP file. Please try again.",
+    });
+  }
+};
+
+
   const handleDelete = async (file) => {
     const confirmed = window.confirm(
       `Are you sure you want to delete "${file.name}"?`
@@ -1178,37 +1388,56 @@ const handleConfirmBulkMoveFolders = async () => {
 
         <div className="files-page-header">
   <div className="files-page-title">
-    {currentFolderId && (
-      <div className="files-breadcrumbs">
-        <button
-          type="button"
-          onClick={() => setCurrentFolderId(null)}
+    
+{currentFolderId && (
+  <div className="files-navigation">
+    <button
+      type="button"
+      className="files-back-button"
+      onClick={() => {
+        const currentFolder = folders.find(
+          (folder) => folder.id === currentFolderId
+        );
+
+        setCurrentFolderId(currentFolder?.parent_id ?? null);
+      }}
+    >
+      <ArrowLeft size={16} />
+      <span>Back</span>
+    </button>
+
+    <div className="files-breadcrumbs">
+      <button
+        type="button"
+        onClick={() => setCurrentFolderId(null)}
+      >
+        My Files
+      </button>
+
+      {folderPath.map((folder) => (
+        <span
+          key={folder.id}
+          className="files-breadcrumb-item"
         >
-          My Files
-        </button>
+          <span>/</span>
 
-        {folderPath.map((folder) => (
-          <span
-            key={folder.id}
-            className="files-breadcrumb-item"
+          <button
+            type="button"
+            className={
+              folder.id === currentFolderId
+                ? "current"
+                : ""
+            }
+            onClick={() => setCurrentFolderId(folder.id)}
           >
-            <span>/</span>
+            {folder.name}
+          </button>
+        </span>
+      ))}
+    </div>
+  </div>
+)}
 
-            <button
-              type="button"
-              className={
-                folder.id === currentFolderId
-                  ? "current"
-                  : ""
-              }
-              onClick={() => setCurrentFolderId(folder.id)}
-            >
-              {folder.name}
-            </button>
-          </span>
-        ))}
-      </div>
-    )}
 
     <p className="dashboard-eyebrow">
       Your files
@@ -1513,31 +1742,44 @@ const handleConfirmBulkMoveFolders = async () => {
     return;
   }
 
-  const rect = event.currentTarget.getBoundingClientRect();
-  const menuWidth = 190;
-  const menuHeight = 150;
-  const gap = 6;
-  const padding = 12;
+  
+const rect = event.currentTarget.getBoundingClientRect();
+const menuWidth = 190;
+const gap = 6;
+const padding = 12;
 
-  let left = rect.right - menuWidth;
-  let top = rect.bottom + gap;
+const estimatedMenuHeight = Math.min(
+  250,
+  window.innerHeight - padding * 2
+);
 
-  left = Math.max(
-    padding,
-    Math.min(left, window.innerWidth - menuWidth - padding)
-  );
+let left = rect.right - menuWidth;
 
-  if (top + menuHeight > window.innerHeight - padding) {
-    top = rect.top - menuHeight - gap;
-  }
+left = Math.max(
+  padding,
+  Math.min(left, window.innerWidth - menuWidth - padding)
+);
 
-  top = Math.max(
-    padding,
-    Math.min(top, window.innerHeight - menuHeight - padding)
-  );
+const spaceBelow = window.innerHeight - rect.bottom - padding;
+const spaceAbove = rect.top - padding;
 
-  setFolderMenuPosition({ top, left });
-  setOpenFolderMenu(folder.id);
+const openUpward =
+  spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow;
+
+let top = openUpward
+  ? rect.top - estimatedMenuHeight - gap
+  : rect.bottom + gap;
+
+top = Math.max(
+  padding,
+  Math.min(
+    top,
+    window.innerHeight - estimatedMenuHeight - padding
+  )
+);
+
+setFolderMenuPosition({ top, left });
+setOpenFolderMenu(folder.id);
 }}
   >
     <MoreVertical size={18} />
@@ -1599,6 +1841,14 @@ const handleConfirmBulkMoveFolders = async () => {
       </button>
 
       <button
+  type="button"
+  onClick={() => handleDownloadFolder(folder)}
+>
+  <Download size={16} />
+  Download folder
+</button>
+
+      <button
         type="button"
         className="danger-action"
         onClick={() => {
@@ -1610,6 +1860,7 @@ const handleConfirmBulkMoveFolders = async () => {
         <Trash2 size={16} />
         Move to Trash
       </button>
+
     </div>,
     document.body
   )}
@@ -1852,15 +2103,47 @@ const handleConfirmBulkMoveFolders = async () => {
           </div>
         )}
 
-        {openMenu && menuPosition && (
-          <div
-            ref={menuRef}
-            className="file-menu file-menu-floating"
-            style={{
-              top: `${menuPosition.top}px`,
-              left: `${menuPosition.left}px`,
-            }}
-          >
+        
+{openMenu && menuPosition && createPortal(
+  <>
+    {window.innerWidth <= 768 && (
+      <div
+        className="file-menu-backdrop"
+        onClick={() => {
+          setOpenMenu(null);
+          setMenuPosition(null);
+          activeButtonRef.current = null;
+        }}
+      />
+    )}
+
+    <div
+  ref={menuRef}
+  className="file-menu file-menu-floating"
+  style={{
+    position: "fixed",
+    top: `${menuPosition.top}px`,
+    left: `${menuPosition.left}px`,
+    maxHeight: menuPosition.maxHeight
+      ? `${menuPosition.maxHeight}px`
+      : undefined,
+    zIndex: 9999,
+  }}
+    onTouchStart={(event) => {
+      menuRef.current.dataset.touchStartY = event.touches[0].clientY;
+    }}
+    onTouchEnd={(event) => {
+      const startY = Number(menuRef.current.dataset.touchStartY);
+      const endY = event.changedTouches[0].clientY;
+
+      if (endY - startY > 90) {
+        setOpenMenu(null);
+        setMenuPosition(null);
+        activeButtonRef.current = null;
+      }
+    }}
+  >
+
             {(() => {
               const file = files.find(
                 (item) => item.id === openMenu
@@ -1952,9 +2235,11 @@ const handleConfirmBulkMoveFolders = async () => {
                   </button>
                 </>
               );
-            })()}
+                        })()}
           </div>
-        )}
+        </>,
+        document.body
+      )}
       </section>
 
       {shareFileData && (
@@ -2845,6 +3130,94 @@ const handleConfirmBulkMoveFolders = async () => {
     </div>
   </div>
 )}
+
+
+{folderDownloadProgress && (
+  <div className="folder-modal-overlay">
+    <div
+  className="folder-modal folder-download-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="folder-download-title"
+    >
+      <h2 id="folder-download-title">
+        {folderDownloadProgress.stage === "complete"
+          ? "Download ready"
+          : folderDownloadProgress.stage === "error"
+            ? "Download failed"
+            : folderDownloadProgress.stage === "zipping"
+              ? "Preparing ZIP file"
+              : "Downloading folder"}
+      </h2>
+
+      <p>
+        {folderDownloadProgress.folderName}
+      </p>
+
+      {folderDownloadProgress.stage !== "error" && (
+        <>
+          <div className="folder-download-progress-track">
+            <div
+              className="folder-download-progress-fill"
+              style={{
+                width: `${folderDownloadProgress.percent}%`,
+              }}
+            />
+          </div>
+
+          <p className="folder-download-progress-text">
+            {folderDownloadProgress.stage === "complete"
+              ? "ZIP file created."
+              : folderDownloadProgress.stage === "zipping"
+                ? "Compressing files..."
+                : folderDownloadProgress.totalFiles === 0
+                  ? "Preparing empty folder..."
+                  : `Processing ${folderDownloadProgress.completedFiles} of ${folderDownloadProgress.totalFiles} files`}
+          </p>
+
+          <p className="folder-download-progress-percent">
+            {folderDownloadProgress.percent}%
+          </p>
+        </>
+      )}
+
+      {folderDownloadProgress.failedFiles.length > 0 && (
+        <div className="folder-download-failures">
+          <p>
+            {folderDownloadProgress.failedFiles.length} file(s) could not
+            be downloaded:
+          </p>
+
+          <ul>
+            {folderDownloadProgress.failedFiles.map((fileName, index) => (
+              <li key={`${fileName}-${index}`}>{fileName}</li>
+            ))}
+          </ul>
+
+          <p>
+            The ZIP was created, but the listed files are missing.
+          </p>
+        </div>
+      )}
+
+      {folderDownloadProgress.message && (
+        <p role="alert">{folderDownloadProgress.message}</p>
+      )}
+
+      {(folderDownloadProgress.stage === "complete" ||
+        folderDownloadProgress.stage === "error") && (
+        <button
+          type="button"
+          className="modal-button"
+          onClick={() => setFolderDownloadProgress(null)}
+        >
+          Close
+        </button>
+      )}
+    </div>
+  </div>
+)}
+
 
     </main>
   );

@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import {
   shareFolder,
@@ -9,11 +9,25 @@ import {
 
 function ShareFolderModal({ folder, onClose, onShared }) {
   const { user } = useAuth();
+
   const [email, setEmail] = useState("");
   const [shares, setShares] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sharing, setSharing] = useState(false);
   const [revokingId, setRevokingId] = useState(null);
+
+  const [permissions, setPermissions] = useState({
+    can_edit: false,
+    can_download: true,
+    can_copy: true,
+  });
+
+  const handlePermissionChange = (permission) => {
+    setPermissions((current) => ({
+      ...current,
+      [permission]: !current[permission],
+    }));
+  };
 
   const loadShares = async () => {
     if (!folder?.id) return;
@@ -30,11 +44,9 @@ function ShareFolderModal({ folder, onClose, onShared }) {
     }
   };
 
-  // Load existing shares when the modal opens.
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useState(() => {
+  useEffect(() => {
     loadShares();
-  });
+  }, [folder?.id]);
 
   const handleShare = async (event) => {
     event.preventDefault();
@@ -53,9 +65,20 @@ function ShareFolderModal({ folder, onClose, onShared }) {
     try {
       setSharing(true);
 
-      await shareFolder(folder, user.id, normalizedEmail);
+      await shareFolder(
+        folder,
+        user.id,
+        normalizedEmail,
+        permissions
+      );
 
       setEmail("");
+      setPermissions({
+        can_edit: false,
+        can_download: true,
+        can_copy: true,
+      });
+
       await loadShares();
       onShared?.();
     } catch (error) {
@@ -92,18 +115,28 @@ function ShareFolderModal({ folder, onClose, onShared }) {
   if (!folder) return null;
 
   return (
-    <div className="share-modal-overlay" onClick={onClose}>
+    <div
+      className="share-modal-overlay"
+      onClick={onClose}
+    >
       <div
         className="share-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-folder-title"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="share-modal-header">
           <div>
-            <h2>Share folder</h2>
+            <h2 id="share-folder-title">Share folder</h2>
             <p>{folder.name}</p>
           </div>
 
-          <button type="button" onClick={onClose} aria-label="Close">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+          >
             &times;
           </button>
         </div>
@@ -113,20 +146,92 @@ function ShareFolderModal({ folder, onClose, onShared }) {
             Share with email address
           </label>
 
-          <div className="share-modal-input-row">
-            <input
-              id="folder-share-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="Enter email address"
-              required
-            />
+          <input
+            id="folder-share-email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="Enter email address"
+            required
+          />
 
-            <button type="submit" disabled={sharing}>
-              {sharing ? "Sharing..." : "Share"}
-            </button>
+          <div className="share-permissions">
+            <h3>Permissions</h3>
+
+            <label className="share-permission-option">
+              <input
+                type="checkbox"
+                checked={permissions.can_edit}
+                onChange={() =>
+                  handlePermissionChange("can_edit")
+                }
+                disabled={sharing}
+              />
+              <span>
+                <strong>Allow editing</strong>
+                <small>
+                  Let the recipient edit supported documents
+                  when collaborative editing is available.
+                </small>
+              </span>
+            </label>
+
+            <label className="share-permission-option">
+              <input
+                type="checkbox"
+                checked={permissions.can_download}
+                onChange={() =>
+                  handlePermissionChange("can_download")
+                }
+                disabled={sharing}
+              />
+              <span>
+                <strong>Allow downloading</strong>
+                <small>
+                  Allow downloading files from this shared folder.
+                </small>
+              </span>
+            </label>
+
+            <label className="share-permission-option">
+              <input
+                type="checkbox"
+                checked={permissions.can_copy}
+                onChange={() =>
+                  handlePermissionChange("can_copy")
+                }
+                disabled={sharing}
+              />
+              <span>
+                <strong>Allow copying to My Files</strong>
+                <small>
+                  Allow the recipient to save copies of the folder
+                  and its contents.
+                </small>
+              </span>
+            </label>
           </div>
+
+          
+<div className="share-modal-actions">
+  <button
+    type="button"
+    className="share-cancel-button"
+    onClick={onClose}
+    disabled={sharing}
+  >
+    Cancel
+  </button>
+
+  <button
+    type="submit"
+    className="share-submit-button"
+    disabled={sharing || !email.trim()}
+  >
+    {sharing ? "Sharing..." : "Share"}
+  </button>
+</div>
+
         </form>
 
         <div className="folder-shares-list">
@@ -146,7 +251,9 @@ function ShareFolderModal({ folder, onClose, onShared }) {
                   onClick={() => handleRevoke(share.id)}
                   disabled={revokingId === share.id}
                 >
-                  {revokingId === share.id ? "Removing..." : "Remove"}
+                  {revokingId === share.id
+                    ? "Removing..."
+                    : "Remove"}
                 </button>
               </div>
             ))

@@ -2796,6 +2796,53 @@
   user-select: none;
 }
 
+
+.share-permissions {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.share-permissions h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.share-permission-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  cursor: pointer;
+}
+
+.share-permission-option input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  flex-shrink: 0;
+  accent-color: var(--accent-color, #6366f1);
+}
+
+.share-permission-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.share-permission-option strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.share-permission-option small {
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.75;
+}
+
+
 /* =========================================================
    RECENT FILES — RENAME MODAL
    ========================================================= */
@@ -4236,4 +4283,72 @@
   .folder-details-row {
     gap: 12px;
   }
+}
+
+
+.upload-queue-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.upload-queue-folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 6px;
+  color: #a78bfa;
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.upload-queue-group .upload-queue-item {
+  width: 100%;
+}
+
+
+
+.upload-options-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 260px;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--border-color, #292936);
+  border-radius: 12px;
+  background: var(--card-bg, #171720);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 10;
+}
+
+.upload-options-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.upload-options-menu button:hover {
+  background: rgba(139, 92, 246, 0.12);
+}
+
+.upload-options-menu button > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.upload-options-menu small {
+  color: var(--text-secondary, #9999ad);
+  font-size: 12px;
 }
