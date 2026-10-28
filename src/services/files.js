@@ -21,9 +21,84 @@ export async function getUserFiles(userId) {
   return data ?? [];
 }
 
-export async function downloadFile(storagePath, fileName = null) {
+
+export async function downloadFile(
+  storagePath,
+  fileName = null,
+  options = {}
+) {
   if (!storagePath) {
     throw new Error("Storage path is required.");
+  }
+
+  const {
+    shareId = null,
+    folderShareId = null,
+  } = options;
+
+  // If this is a shared file, verify the share is still active.
+  if (shareId || folderShareId) {
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError) throw authError;
+
+    if (!user?.email) {
+      throw new Error("Please sign in to download this file.");
+    }
+
+    const now = new Date().toISOString();
+    const recipientEmail = user.email.trim().toLowerCase();
+
+    if (shareId) {
+      const { data: share, error } = await supabase
+        .from("file_shares")
+        .select("id, expires_at, can_download, shared_with_email")
+        .eq("id", shareId)
+        .ilike("shared_with_email", recipientEmail)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (
+        !share ||
+        (share.expires_at && new Date(share.expires_at) <= new Date(now))
+      ) {
+        throw new Error(
+          "This share has expired or been revoked. Ask the owner to share the file again."
+        );
+      }
+
+      if (!share.can_download) {
+        throw new Error("The owner has disabled downloads for this file.");
+      }
+    }
+
+    if (folderShareId) {
+      const { data: share, error } = await supabase
+        .from("folder_shares")
+        .select("id, expires_at, can_download, shared_with_email")
+        .eq("id", folderShareId)
+        .ilike("shared_with_email", recipientEmail)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (
+        !share ||
+        (share.expires_at && new Date(share.expires_at) <= new Date(now))
+      ) {
+        throw new Error(
+          "This folder share has expired or been revoked. Ask the owner to share it again."
+        );
+      }
+
+      if (!share.can_download) {
+        throw new Error("The owner has disabled downloads for this folder.");
+      }
+    }
   }
 
   const { data, error } = await supabase.storage
@@ -31,12 +106,14 @@ export async function downloadFile(storagePath, fileName = null) {
     .download(storagePath);
 
   if (error) {
-    throw error;
+    throw new Error(
+      "The file could not be downloaded. Its share may have expired or access may have been revoked."
+    );
   }
 
   const blobUrl = URL.createObjectURL(data);
-
   const link = document.createElement("a");
+
   link.href = blobUrl;
   link.download =
     fileName ||
@@ -51,6 +128,7 @@ export async function downloadFile(storagePath, fileName = null) {
     URL.revokeObjectURL(blobUrl);
   }, 1000);
 }
+
 
 export async function getPreviewUrl(storagePath) {
   if (!storagePath) {
@@ -182,6 +260,102 @@ export async function permanentlyDeleteFile(file) {
 }
 
 
+export async function getPreviousFileRecipients(ownerId) {
+  if (!ownerId) {
+    throw new Error("Owner ID is required.");
+  }
+
+  const { data, error } = await supabase
+    .from("file_recipient_history")
+    .select("id, recipient_email, created_at")
+    .eq("owner_id", ownerId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return data ?? [];
+}
+
+export async function saveFileRecipient(ownerId, email) {
+  if (!ownerId || !email?.trim()) {
+    throw new Error("Owner ID and recipient email are required.");
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const { data, error } = await supabase
+    .from("file_recipient_history")
+    .upsert(
+      {
+        owner_id: ownerId,
+        recipient_email: normalizedEmail,
+        created_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "owner_id,recipient_email",
+      }
+    )
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return data;
+}
+
+export async function removeFileRecipientSuggestion(ownerId, email) {
+  if (!ownerId || !email?.trim()) {
+    throw new Error("Owner ID and recipient email are required.");
+  }
+
+  const { error } = await supabase
+    .from("file_recipient_history")
+    .delete()
+    .eq("owner_id", ownerId)
+    .eq("recipient_email", email.trim().toLowerCase());
+
+  if (error) throw error;
+}
+
+export async function clearFileRecipientHistory(ownerId) {
+  if (!ownerId) {
+    throw new Error("Owner ID is required.");
+  }
+
+  const { error } = await supabase
+    .from("file_recipient_history")
+    .delete()
+    .eq("owner_id", ownerId);
+
+  if (error) throw error;
+}
+
+
+export async function checkRecipientAccount(email) {
+  if (!email?.trim()) {
+    throw new Error("Email address is required.");
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const { data, error } = await supabase.functions.invoke(
+    "check-recipient-account",
+    {
+      body: { email: normalizedEmail },
+    }
+  );
+
+  if (error) {
+    throw new Error("Could not verify this recipient. Please try again.");
+  }
+
+  if (!data || typeof data.registered !== "boolean") {
+    throw new Error("The recipient verification response was invalid.");
+  }
+
+  return data;
+}
+
 export async function shareFile(
   file,
   ownerId,
@@ -194,6 +368,15 @@ export async function shareFile(
 
   const normalizedEmail = email.trim().toLowerCase();
 
+  // Check NOVA registration before creating the share.
+  const recipient = await checkRecipientAccount(normalizedEmail);
+
+  if (!recipient.registered) {
+    throw new Error(
+      "This email is not registered with NOVA. Invite them to join before sharing."
+    );
+  }
+
   const { data, error } = await supabase
     .from("file_shares")
     .insert({
@@ -203,15 +386,53 @@ export async function shareFile(
       can_edit: permissions.can_edit ?? false,
       can_download: permissions.can_download ?? true,
       can_copy: permissions.can_copy ?? true,
+      expires_at: permissions.expires_at ?? null,
     })
     .select()
     .single();
+
 
   if (error) {
     throw error;
   }
 
+  // Save the recipient for future suggestions.
+  try {
+    await saveFileRecipient(ownerId, normalizedEmail);
+  } catch (historyError) {
+    // A history failure should not undo a successful file share.
+    console.error(
+      "Could not save recipient history:",
+      historyError
+    );
+  }
+
   return data;
+}
+
+
+export async function searchRecipientAccounts(query) {
+  const normalizedQuery = query?.trim().toLowerCase() ?? "";
+
+  // Avoid searching on very short input.
+  if (normalizedQuery.length < 2) return [];
+
+  const { data, error } = await supabase.functions.invoke(
+    "search-recipient-accounts",
+    {
+      body: { query: normalizedQuery },
+    }
+  );
+
+  if (error) {
+    throw new Error("Could not search NOVA accounts.");
+  }
+
+  if (!Array.isArray(data?.recipients)) {
+    throw new Error("The recipient search response was invalid.");
+  }
+
+  return data.recipients;
 }
 
 
@@ -230,6 +451,7 @@ export async function getFileShares(ownerId) {
   can_edit,
   can_download,
   can_copy,
+  expires_at,
   created_at,
   files (
     id,
@@ -278,6 +500,7 @@ export async function getSharedWithMe(email) {
       owner_id,
       shared_with_email,
       created_at,
+      expires_at,
       can_edit,
       can_download,
       can_copy,
@@ -295,9 +518,18 @@ export async function getSharedWithMe(email) {
     .eq("shared_with_email", normalizedEmail)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
+if (error) throw error;
 
-  return data ?? [];
+const now = Date.now();
+const gracePeriod = 24 * 60 * 60 * 1000;
+
+return (data ?? []).filter((share) => {
+  if (!share.expires_at) return true;
+
+  const expiresAt = new Date(share.expires_at).getTime();
+
+  return now < expiresAt + gracePeriod;
+});
 }
 
 
@@ -492,11 +724,12 @@ if (!recipientEmail) {
 
 let canCopy = false;
 
+
 if (options.folderShareId) {
-  // The file is being copied through an authorized folder share.
+  // Find the share even if it has expired, so we can show the right message.
   const { data: folderShare, error: folderShareError } = await supabase
     .from("folder_shares")
-    .select("id, can_copy")
+    .select("id, can_copy, expires_at")
     .eq("id", options.folderShareId)
     .ilike("shared_with_email", recipientEmail)
     .maybeSingle();
@@ -504,34 +737,56 @@ if (options.folderShareId) {
   if (folderShareError) throw folderShareError;
 
   if (!folderShare) {
-    throw new Error("You do not have permission to copy this shared folder.");
+    throw new Error(
+      "You do not have permission to copy this shared folder."
+    );
+  }
+
+  if (
+    folderShare.expires_at &&
+    new Date(folderShare.expires_at) <= new Date()
+  ) {
+    throw new Error(
+      "This folder share has expired. Ask the owner to share the folder again."
+    );
   }
 
   canCopy = folderShare.can_copy;
-} else {
-  // The file is being copied through its individual share.
-  let shareQuery = supabase
-  .from("file_shares")
-  .select("id, can_copy")
-  .eq("file_id", file.id)
-  .eq("owner_id", file.user_id)
-  .ilike("shared_with_email", recipientEmail);
-
-if (options.shareId) {
-  shareQuery = shareQuery.eq("id", options.shareId);
 }
 
-const { data: share, error: shareError } =
-  await shareQuery.maybeSingle();
+else {
+  // Find the individual share even if it has expired.
+  let shareQuery = supabase
+    .from("file_shares")
+    .select("id, can_copy, expires_at")
+    .eq("file_id", file.id)
+    .eq("owner_id", file.user_id)
+    .ilike("shared_with_email", recipientEmail);
+
+  if (options.shareId) {
+    shareQuery = shareQuery.eq("id", options.shareId);
+  }
+
+  const { data: share, error: shareError } =
+    await shareQuery.maybeSingle();
 
   if (shareError) throw shareError;
 
   if (!share) {
-    throw new Error("You do not have permission to copy this shared file.");
+    throw new Error(
+      "You do not have permission to copy this shared file."
+    );
+  }
+
+  if (share.expires_at && new Date(share.expires_at) <= new Date()) {
+    throw new Error(
+      "This share has expired. Ask the owner to share the file again."
+    );
   }
 
   canCopy = share.can_copy;
 }
+
 
 if (!canCopy) {
   throw new Error("The owner has disabled copying.");
@@ -628,8 +883,6 @@ if (!canCopy) {
 }
 
 
-
-
 export async function getFilesInFolder(folderId) {
   if (!folderId) {
     throw new Error("Folder ID is required.");
@@ -644,5 +897,12 @@ export async function getFilesInFolder(folderId) {
 
   if (error) throw error;
 
-  return data ?? [];
+const now = Date.now();
+
+return (data ?? []).filter(
+  (share) =>
+    !share.expires_at ||
+    new Date(share.expires_at).getTime() > now
+);
 }
+

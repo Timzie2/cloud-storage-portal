@@ -286,6 +286,7 @@ async function openSharedFolder(folder, isChild = false) {
       can_download:
         rootShare?.can_download ?? folder.can_download ?? false,
       can_edit: rootShare?.can_edit ?? folder.can_edit ?? false,
+      folder_share_expires_at: rootShare?.expires_at ?? folder.folder_share_expires_at ?? null,
     };
 
     setCurrentSharedFolder(folderWithPermissions);
@@ -299,6 +300,7 @@ async function openSharedFolder(folder, isChild = false) {
   subfolders.map((subfolder) => ({
     ...subfolder,
     folder_share_id: folderWithPermissions.share_id,
+    folder_share_expires_at: folderWithPermissions.folder_share_expires_at,
     can_copy: folderWithPermissions.can_copy,
     can_download: folderWithPermissions.can_download,
     can_edit: folderWithPermissions.can_edit,
@@ -309,6 +311,7 @@ setSharedFolderFiles(
   files.map((file) => ({
     ...file,
     folder_share_id: folderWithPermissions.share_id,
+    folder_share_expires_at: folderWithPermissions.folder_share_expires_at,
     can_copy: folderWithPermissions.can_copy,
     can_download: folderWithPermissions.can_download,
     can_edit: folderWithPermissions.can_edit,
@@ -366,32 +369,87 @@ function closeSharedFolder() {
   setError("");
 }
 
-  async function handlePreview(file) {
-    try {
-      setPreviewFile(file);
-      setPreviewUrl(null);
-      setPreviewLoading(true);
 
-      const url = await getPreviewUrl(file.storage_path);
+async function handlePreview(file, share = null) {
+  try {
+    if (share?.expires_at && new Date(share.expires_at) <= new Date()) {
+      setFileError(
+        "This share has expired. Ask the owner to share the file again."
+      );
+      return;
+    }
 
-      setPreviewUrl(url);
-    } catch (err) {
-      console.error("Preview error:", err);
-      setError("Could not preview this file.");
-      setPreviewFile(null);
-    } finally {
-      setPreviewLoading(false);
+    if (
+      file?.folder_share_expires_at &&
+      new Date(file.folder_share_expires_at) <= new Date()
+    ) {
+      setOpenedFolderError(
+        "This folder share has expired. Ask the owner to share the folder again."
+      );
+      return;
+    }
+
+    setPreviewFile(file);
+    setPreviewUrl(null);
+    setPreviewLoading(true);
+
+    const url = await getPreviewUrl(file.storage_path);
+
+    setPreviewUrl(url);
+  } catch (err) {
+    console.error("Preview error:", err);
+    setError("Could not preview this file.");
+    setPreviewFile(null);
+  } finally {
+    setPreviewLoading(false);
+  }
+}
+
+
+
+async function handleDownload(file, share = null) {
+  try {
+    if (share?.expires_at && new Date(share.expires_at) <= new Date()) {
+      const message =
+        "This share has expired. Ask the owner to share the file again.";
+
+      if (share.folder_share_id || file.folder_share_id) {
+        setOpenedFolderError(message);
+      } else {
+        setFileError(message);
+      }
+      return;
+    }
+
+    if (
+      file?.folder_share_expires_at &&
+      new Date(file.folder_share_expires_at) <= new Date()
+    ) {
+      setOpenedFolderError(
+        "This folder share has expired. Ask the owner to share the folder again."
+      );
+      return;
+    }
+
+    const options = file.folder_share_id
+      ? { folderShareId: file.folder_share_id }
+      : share?.id
+        ? { shareId: share.id }
+        : {};
+
+    await downloadFile(file.storage_path, file.name, options);
+  } catch (err) {
+    console.error("Download error:", err);
+    const message = err.message || "Could not download this file.";
+
+    if (file.folder_share_id) {
+      setOpenedFolderError(message);
+    } else {
+      setFileError(message);
     }
   }
+}
 
-  async function handleDownload(file) {
-    try {
-      await downloadFile(file.storage_path);
-    } catch (err) {
-      console.error("Download error:", err);
-      setError("Could not download this file.");
-    }
-  }
 
   function closePreview() {
     setPreviewFile(null);
@@ -495,10 +553,21 @@ async function confirmCopy() {
 
     setCopyTarget(null);
     setSelectedDestination("");
-  } catch (err) {
-    console.error("Error copying shared item:", err);
-    setError(err.message || "Could not copy this item.");
-  } finally {
+
+} catch (err) {
+  console.error("Error copying shared item:", err);
+
+  const message = err.message || "Could not copy this item.";
+
+  if (copyTarget?.type === "folder") {
+    setFolderError(message);
+  } else if (copyTarget?.item?.folder_share_id) {
+    setOpenedFolderError(message);
+  } else {
+    setFileError(message);
+  }
+} finally {
+
     setCopyingItem(null);
   }
 }
@@ -894,15 +963,26 @@ async function handleFolderRevoke() {
 onClick={(event) => {
   event.stopPropagation();
 
-  if (!currentSharedFolder?.can_copy) {
-    setOpenedFolderError(
-  "The owner has disabled copying for this folder."
-);
-    return;
-  }
 
-  setOpenedFolderError("");
-  handleCopySharedFile(file);
+if (
+  file.folder_share_expires_at &&
+  new Date(file.folder_share_expires_at) <= new Date()
+) {
+  setOpenedFolderError(
+    "This folder share has expired. Ask the owner to share the folder again."
+  );
+  return;
+}
+
+if (!currentSharedFolder?.can_copy) {
+  setOpenedFolderError(
+    "The owner has disabled copying for this folder."
+  );
+  return;
+}
+
+setOpenedFolderError("");
+handleCopySharedFile(file);
 }}
 title={
   !currentSharedFolder?.can_copy
@@ -921,6 +1001,18 @@ title={
 onClick={(event) => {
   event.stopPropagation();
 
+  
+if (
+  file.folder_share_expires_at &&
+  new Date(file.folder_share_expires_at) <= new Date()
+) {
+  setOpenedFolderError(
+    "This folder share has expired. Ask the owner to share the folder again."
+  );
+  return;
+}
+
+
   if (!currentSharedFolder?.can_download) {
     setOpenedFolderError(
   "The owner has disabled downloading for this folder."
@@ -929,7 +1021,10 @@ onClick={(event) => {
   }
 
   setOpenedFolderError("");
-  handleDownload(file);
+  handleDownload(file, {
+  folder_share_id: file.folder_share_id,
+  expires_at: file.folder_share_expires_at,
+});
 }}
 title={
   !currentSharedFolder?.can_download
@@ -1010,7 +1105,14 @@ title={
   onClick={(event) => {
     event.stopPropagation();
 
-    if (!share.can_copy) {
+    if (share.expires_at && new Date(share.expires_at) <= new Date()) {
+  setFolderError(
+    "This folder share has expired. Ask the owner to share the folder again."
+  );
+  return;
+}
+
+if (!share.can_copy) {
   setFolderError("The owner has disabled copying for this folder.");
   return;
 }
@@ -1040,7 +1142,14 @@ setFolderError("");
   onClick={async (event) => {
     event.stopPropagation();
 
-    if (!share.can_download) {
+    if (share.expires_at && new Date(share.expires_at) <= new Date()) {
+  setFolderError(
+    "This folder share has expired. Ask the owner to share the folder again."
+  );
+  return;
+}
+
+if (!share.can_download) {
   setFolderError("The owner has disabled downloading for this folder.");
   return;
 }
@@ -1084,7 +1193,7 @@ setFolderError("");
 
 
         {/* =========================================
-            SHARED WITH YOU
+           FILES SHARED WITH YOU
         ========================================= */}
 
         <section className="shared-section">
@@ -1154,13 +1263,13 @@ setFolderError("");
                   <div
   className="shared-item shared-clickable-item"
   key={share.id}
-  onClick={() => file && handlePreview(file)}
+  onClick={() => file && handlePreview(file, share)}
   role="button"
   tabIndex={file ? 0 : -1}
   onKeyDown={(event) => {
     if (file && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
-      handlePreview(file);
+      handlePreview(file, share);
     }
   }}
 >
@@ -1200,21 +1309,30 @@ setFolderError("");
 <button
   type="button"
   className="shared-action-btn"
-  onClick={(event) => {
-    event.stopPropagation();
 
-    if (!share.can_copy) {
-      setFileError("The owner has disabled copying for this file.");
-      return;
-    }
+onClick={(event) => {
+  event.stopPropagation();
 
-    setFileError("");
-    handleCopySharedFile({
-      ...file,
-      share_id: share.id,
-      can_copy: share.can_copy,
-    });
-  }}
+  if (share.expires_at && new Date(share.expires_at) <= new Date()) {
+    setFileError(
+      "This share has expired. Ask the owner to share the file again."
+    );
+    return;
+  }
+
+  if (!share.can_copy) {
+    setFileError("The owner has disabled copying for this file.");
+    return;
+  }
+
+  setFileError("");
+  handleCopySharedFile({
+    ...file,
+    share_id: share.id,
+    can_copy: share.can_copy,
+  });
+}}
+
   disabled={copyingItem === file?.id || !file}
   title={
     !share.can_copy
@@ -1231,6 +1349,15 @@ setFolderError("");
   onClick={(event) => {
     event.stopPropagation();
 
+    
+if (share.expires_at && new Date(share.expires_at) <= new Date()) {
+  setFileError(
+    "This share has expired. Ask the owner to share the file again."
+  );
+  return;
+}
+
+
     if (!share.can_download) {
   setFileError("The owner has disabled downloading for this file.");
   return;
@@ -1238,7 +1365,7 @@ setFolderError("");
 
 setFileError("");
 
-    handleDownload(file);
+    handleDownload(file, share);
   }}
   disabled={copyingItem === file?.id}
   title={
@@ -1493,9 +1620,60 @@ setFileError("");
           file={previewFile}
           signedUrl={previewUrl}
           onClose={closePreview}
-          onDownload={() =>
-            handleDownload(previewFile)
-          }
+onDownload={() => {
+  const share = sharedWithMe.find(
+    (item) => item.file_id === previewFile.id
+  );
+
+  
+  if (
+    (share?.expires_at &&
+      new Date(share.expires_at) <= new Date()) ||
+    (previewFile.folder_share_expires_at &&
+      new Date(previewFile.folder_share_expires_at) <= new Date())
+  ) {
+    if (previewFile.folder_share_id) {
+      setOpenedFolderError(
+        "This folder share has expired. Ask the owner to share the folder again."
+      );
+    } else {
+      setFileError(
+        "This share has expired. Ask the owner to share the file again."
+      );
+    }
+
+    closePreview();
+    return;
+  }
+
+
+  if (share && !share.can_download) {
+    setFileError(
+      "The owner has disabled downloading for this file."
+    );
+    closePreview();
+    return;
+  }
+
+  if (
+    previewFile.folder_share_id &&
+    !previewFile.can_download
+  ) {
+    setOpenedFolderError(
+      "The owner has disabled downloading for this folder."
+    );
+    closePreview();
+    return;
+  }
+
+  handleDownload(
+    previewFile,
+    share || {
+      folder_share_id: previewFile.folder_share_id,
+      expires_at: previewFile.folder_share_expires_at,
+    }
+  );
+}}
           loading={previewLoading}
         />
       )}

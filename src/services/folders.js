@@ -469,6 +469,7 @@ export async function shareFolder(
       can_edit: permissions.can_edit ?? false,
       can_download: permissions.can_download ?? true,
       can_copy: permissions.can_copy ?? true,
+      expires_at: permissions.expires_at ?? null,
     })
     .select()
     .single();
@@ -522,6 +523,7 @@ export async function getFolderSharesByOwner(ownerId) {
   owner_id,
   shared_with_email,
   created_at,
+  expires_at,
   can_edit,
   can_download,
   can_copy,
@@ -557,6 +559,7 @@ const { data, error } = await supabase
     owner_id,
     shared_with_email,
     created_at,
+    expires_at,
     can_edit,
     can_download,
     can_copy,
@@ -572,9 +575,18 @@ const { data, error } = await supabase
   .order("created_at", { ascending: false });
 
 
-  if (error) throw error;
+if (error) throw error;
 
-  return data ?? [];
+const now = Date.now();
+const gracePeriod = 24 * 60 * 60 * 1000;
+
+return (data ?? []).filter((share) => {
+  if (!share.expires_at) return true;
+
+  const expiresAt = new Date(share.expires_at).getTime();
+
+  return now < expiresAt + gracePeriod;
+});
 }
 
 
@@ -631,7 +643,7 @@ export async function copySharedFolder(
   
 let shareQuery = supabase
   .from("folder_shares")
-  .select("id, can_copy")
+  .select("id, can_copy, expires_at")
   .eq("folder_id", sourceFolder.id)
   .eq("owner_id", sourceFolder.user_id)
   .ilike("shared_with_email", recipientEmail);
@@ -649,6 +661,12 @@ const { data: share, error: shareError } =
   if (!share) {
     throw new Error("You do not have permission to copy this shared folder.");
   }
+
+  if (share.expires_at && new Date(share.expires_at) <= new Date()) {
+  throw new Error(
+    "This folder share has expired. Ask the owner to share the folder again."
+  );
+}
 
   if (!share.can_copy) {
     throw new Error("The owner has disabled copying for this folder.");
@@ -729,7 +747,7 @@ export async function downloadSharedFolderAsZip(sourceFolder) {
 
   let shareQuery = supabase
     .from("folder_shares")
-    .select("id, can_download")
+    .select("id, can_download, expires_at")
     .eq("folder_id", sourceFolder.id)
     .eq("owner_id", sourceFolder.user_id)
     .ilike("shared_with_email", recipientEmail);
@@ -746,6 +764,12 @@ export async function downloadSharedFolderAsZip(sourceFolder) {
   if (!share) {
     throw new Error("You do not have permission to download this folder.");
   }
+
+  if (share.expires_at && new Date(share.expires_at) <= new Date()) {
+  throw new Error(
+    "This folder share has expired. Ask the owner to share the folder again."
+  );
+}
 
   if (!share.can_download) {
     throw new Error("The owner has disabled downloading for this folder.");

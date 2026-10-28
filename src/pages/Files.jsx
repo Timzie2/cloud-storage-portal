@@ -202,6 +202,7 @@ function Files() {
   const menuRef = useRef(null);
   const activeButtonRef = useRef(null);
 
+
   const loadFilesAndFolders = async () => {
   if (!user) return;
 
@@ -599,7 +600,12 @@ const clearFolderSelection = () => {
       setPreviewFile(null);
       setPreviewUrl(null);
 
-      alert("Could not open this file.");
+      alert(
+  error.message?.toLowerCase().includes("expired") ||
+    error.message?.toLowerCase().includes("revoked")
+    ? "This share has expired or been revoked. Ask the owner to share the file again."
+    : "Could not open this file."
+);
     } finally {
       setPreviewLoading(false);
     }
@@ -2123,7 +2129,8 @@ setOpenFolderMenu(folder.id);
       />
     )}
 
-    <div
+    
+<div
   ref={menuRef}
   className="file-menu file-menu-floating"
   style={{
@@ -2135,20 +2142,24 @@ setOpenFolderMenu(folder.id);
       : undefined,
     zIndex: 9999,
   }}
-    onTouchStart={(event) => {
-      menuRef.current.dataset.touchStartY = event.touches[0].clientY;
-    }}
-    onTouchEnd={(event) => {
-      const startY = Number(menuRef.current.dataset.touchStartY);
-      const endY = event.changedTouches[0].clientY;
+  onTouchStart={(event) => {
+    menuRef.current.dataset.touchStartY =
+      event.touches[0].clientY;
+  }}
+  onTouchEnd={(event) => {
+    const startY = Number(
+      menuRef.current.dataset.touchStartY
+    );
+    const endY = event.changedTouches[0].clientY;
 
-      if (endY - startY > 90) {
-        setOpenMenu(null);
-        setMenuPosition(null);
-        activeButtonRef.current = null;
-      }
-    }}
-  >
+    if (endY - startY > 90) {
+      setOpenMenu(null);
+      setMenuPosition(null);
+      activeButtonRef.current = null;
+    }
+  }}
+>
+
 
             {(() => {
               const file = files.find(

@@ -1,0 +1,2326 @@
+/* =========================================================
+   NOVA — SHARE FILE MODAL
+   Modern, theme-aware styling
+   Append this block at the bottom of your existing CSS.
+   ========================================================= */
+
+/* ---------- Overlay ---------- */
+
+.share-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 12, 24, 0.58);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  animation: novaShareOverlayIn 180ms ease-out;
+}
+
+@keyframes novaShareOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------- Main modal ---------- */
+
+.share-modal {
+  --share-accent: var(--primary, #6366f1);
+  --share-accent-soft: color-mix(
+    in srgb,
+    var(--share-accent) 10%,
+    transparent
+  );
+  --share-border: var(--border, #e5e7eb);
+  --share-text: var(--text, #171923);
+  --share-muted: var(--text-muted, #717784);
+  --share-surface: var(--surface, #ffffff);
+  --share-raised: var(--surface-elevated, #ffffff);
+  --share-hover: var(--surface-hover, #f5f6fa);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(620px, 100%);
+  max-height: min(860px, calc(100dvh - 48px));
+  padding: 28px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--share-raised);
+  color: var(--share-text);
+  border: 1px solid var(--share-border);
+  border-radius: 22px;
+  box-shadow:
+    0 32px 90px rgba(0, 0, 0, 0.22),
+    0 8px 24px rgba(0, 0, 0, 0.08);
+  animation: novaShareModalIn 220ms cubic-bezier(.2, .8, .2, 1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--share-border) transparent;
+}
+
+@keyframes novaShareModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.share-modal *,
+.share-modal *::before,
+.share-modal *::after {
+  box-sizing: border-box;
+}
+
+/* ---------- Header ---------- */
+
+.share-modal .share-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 26px;
+  padding: 0 0 22px;
+  border-bottom: 1px solid var(--share-border);
+}
+
+.share-modal .share-file-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.share-modal .share-file-icon {
+  display: grid;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  color: var(--share-accent);
+  background: var(--share-accent-soft);
+  border: 1px solid color-mix(
+    in srgb,
+    var(--share-accent) 18%,
+    transparent
+  );
+  border-radius: 15px;
+}
+
+.share-modal .share-file-heading-info {
+  min-width: 0;
+}
+
+.share-modal .share-modal-eyebrow {
+  display: block;
+  margin: 0 0 5px;
+  color: var(--share-accent);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.share-modal .share-modal-header h2 {
+  margin: 0;
+  color: var(--share-text);
+  font-size: 23px;
+  font-weight: 750;
+  letter-spacing: -.045em;
+  line-height: 1.25;
+}
+
+.share-modal .share-modal-file-name {
+  display: block;
+  max-width: 390px;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--share-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-modal .share-file-meta {
+  margin-top: 3px;
+  color: var(--share-muted);
+  font-size: 12px;
+}
+
+.share-modal .share-modal-close {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  color: var(--share-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.share-modal .share-modal-close:hover {
+  color: var(--share-text);
+  background: var(--share-hover);
+  border-color: var(--share-border);
+}
+
+.share-modal .share-modal-close:focus-visible,
+.share-modal button:focus-visible,
+.share-modal input:focus-visible {
+  outline: 3px solid color-mix(
+    in srgb,
+    var(--share-accent) 35%,
+    transparent
+  );
+  outline-offset: 2px;
+}
+
+/* ---------- Sections ---------- */
+
+.share-modal .share-form-section {
+  position: relative;
+  margin: 0 0 25px;
+}
+
+.share-modal .share-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 13px;
+}
+
+.share-modal .share-section-number {
+  display: grid;
+  flex: 0 0 27px;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  color: var(--share-accent);
+  background: var(--share-accent-soft);
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.share-modal .share-section-heading h3,
+.share-modal .share-section-heading h4 {
+  margin: 0;
+  color: var(--share-text);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -.015em;
+}
+
+.share-modal .share-section-heading p {
+  margin: 3px 0 0;
+  color: var(--share-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.share-modal .share-field-label {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--share-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* ---------- Email field ---------- */
+
+.share-modal .recipient-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+.share-modal .recipient-autocomplete > input,
+.share-modal .recipient-autocomplete input[type="email"],
+.share-modal .share-expiry-section input[type="date"] {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px;
+  color: var(--share-text);
+  background: var(--share-surface);
+  border: 1px solid var(--share-border);
+  border-radius: 12px;
+  box-shadow: none;
+  font: inherit;
+  font-size: 13px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.share-modal .recipient-autocomplete > input::placeholder {
+  color: var(--share-muted);
+  opacity: .8;
+}
+
+.share-modal .recipient-autocomplete > input:hover,
+.share-modal .share-expiry-section input[type="date"]:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--share-accent) 40%,
+    var(--share-border)
+  );
+}
+
+.share-modal .recipient-autocomplete > input:focus,
+.share-modal .share-expiry-section input[type="date"]:focus {
+  border-color: var(--share-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--share-accent-soft);
+}
+
+.share-modal .recipient-autocomplete > input:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}
+
+/* ---------- Recipient suggestions ---------- */
+
+.share-modal .recipient-suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 7px);
+  right: 0;
+  left: 0;
+  max-height: 235px;
+  padding: 6px;
+  overflow-y: auto;
+  color: var(--share-text);
+  background: var(--share-raised);
+  border: 1px solid var(--share-border);
+  border-radius: 14px;
+  box-shadow: 0 14px 35px rgba(0, 0, 0, .14);
+}
+
+.share-modal .recipient-suggestions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 9px;
+  color: var(--share-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.share-modal .recipient-suggestions-header button {
+  padding: 3px 5px;
+  color: var(--share-accent);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.share-modal .recipient-suggestions-header button:hover {
+  background: var(--share-accent-soft);
+}
+
+.share-modal .recipient-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px;
+  border-radius: 10px;
+  transition: background 140ms ease;
+}
+
+.share-modal .recipient-suggestion:hover {
+  background: var(--share-hover);
+}
+
+.share-modal .recipient-suggestion-select {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.share-modal .recipient-suggestion-avatar,
+.share-modal .share-access-avatar {
+  display: grid;
+  flex: 0 0 35px;
+  width: 35px;
+  height: 35px;
+  place-items: center;
+  color: var(--share-accent);
+  background: var(--share-accent-soft);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.share-modal .recipient-suggestion-select > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-modal .recipient-suggestion-remove {
+  display: grid;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: var(--share-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.share-modal .recipient-suggestion-remove:hover {
+  color: #dc4545;
+  background: rgba(220, 69, 69, .09);
+}
+
+.share-modal .recipient-suggestions-empty {
+  padding: 15px 10px;
+  color: var(--share-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ---------- Recipient verification ---------- */
+
+.share-modal .share-recipient-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--share-border);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.share-modal .share-recipient-status.checking {
+  color: var(--share-muted);
+  background: var(--share-hover);
+}
+
+.share-modal .share-recipient-status.error {
+  color: #c73535;
+  background: rgba(220, 53, 53, .07);
+  border-color: rgba(220, 53, 53, .22);
+}
+
+.share-modal .share-recipient-verified {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 11px 12px;
+  background: rgba(22, 163, 74, .07);
+  border: 1px solid rgba(22, 163, 74, .2);
+  border-radius: 12px;
+}
+
+.share-modal .share-verified-icon {
+  display: grid;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  color: #16a34a;
+  background: rgba(22, 163, 74, .12);
+  border-radius: 50%;
+}
+
+.share-modal .share-recipient-verified > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.share-modal .share-recipient-verified strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--share-text);
+  font-size: 12px;
+}
+
+.share-modal .share-recipient-verified p {
+  margin: 3px 0 0;
+  color: var(--share-muted);
+  font-size: 11px;
+}
+
+.share-modal .share-verified-badge {
+  padding: 4px 7px;
+  color: #15803d;
+  background: rgba(22, 163, 74, .1);
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+/* ---------- Permission cards ---------- */
+
+.share-modal .share-permissions {
+  display: grid;
+  gap: 10px;
+}
+
+.share-modal .share-permissions-panel {
+  display: grid;
+  gap: 0;
+  padding: 4px 13px;
+  background: var(--share-surface);
+  border: 1px solid var(--share-border);
+  border-radius: 14px;
+}
+
+.share-modal .share-permission-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 13px 0;
+  cursor: pointer;
+}
+
+.share-modal .share-permission-option + .share-permission-option {
+  border-top: 1px solid var(--share-border);
+}
+
+.share-modal .share-permission-option input[type="checkbox"] {
+  flex: 0 0 17px;
+  width: 17px;
+  height: 17px;
+  min-height: 17px;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: var(--share-accent);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.share-modal .share-permission-copy {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+
+.share-modal .share-permission-copy strong {
+  display: block;
+  color: var(--share-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.share-modal .share-permission-copy span {
+  display: block;
+  margin-top: 4px;
+  color: var(--share-muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+/* ---------- Expiry options ---------- */
+
+.share-modal .share-expiry-section {
+  margin-bottom: 22px;
+}
+
+.share-modal .share-expiry-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.share-modal .share-expiry-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 7px;
+  color: var(--share-muted);
+  background: var(--share-surface);
+  border: 1px solid var(--share-border);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 650;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.share-modal .share-expiry-option:hover {
+  color: var(--share-text);
+  border-color: color-mix(
+    in srgb,
+    var(--share-accent) 45%,
+    var(--share-border)
+  );
+}
+
+.share-modal .share-expiry-option.selected {
+  color: var(--share-accent);
+  background: var(--share-accent-soft);
+  border-color: var(--share-accent);
+  box-shadow: inset 0 0 0 1px var(--share-accent);
+}
+
+.share-modal .share-custom-expiry {
+  margin-top: 12px;
+}
+
+.share-modal .share-custom-expiry label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--share-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.share-modal .share-expiry-section input[type="date"] {
+  min-height: 42px;
+}
+
+/* ---------- Existing access ---------- */
+.share-modal .share-settings-grid {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.share-modal .share-existing-access {
+  margin-top: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--share-border);
+}
+
+.share-modal .share-existing-access .share-section-heading > div > p {
+  transform: translateY(-12px);
+}
+
+.share-modal .share-existing-access .share-section-heading {
+  margin-bottom: 12px;
+}
+
+.share-modal .folder-shares-list {
+  display: grid;
+  gap: 8px;
+}
+.share-modal .share-access-empty {
+  padding: 18px 14px;
+  color: var(--share-muted);
+  background: var(--share-surface);
+  border: 1px dashed var(--share-border);
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.share-modal .folder-share-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px;
+  background: var(--share-surface);
+  border: 1px solid var(--share-border);
+  border-radius: 12px;
+  transition: background 150ms ease;
+}
+
+.share-modal .folder-share-row:hover {
+  background: var(--share-hover);
+}
+
+.share-modal .share-access-person {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.share-modal .share-access-person-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.share-modal .share-access-person-info strong {
+  display: block;
+  overflow: hidden;
+  color: var(--share-text);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-modal .share-access-person-info > span {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: var(--share-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.share-modal .share-access-expiry {
+  display: block;
+  margin-top: 4px;
+  color: var(--share-muted);
+  font-size: 10px;
+}
+
+.share-modal .share-remove-access {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: var(--share-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.share-modal .share-remove-access:hover {
+  color: #dc4545;
+  background: rgba(220, 69, 69, .09);
+  border-color: rgba(220, 69, 69, .18);
+}
+
+.share-modal .share-remove-access:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* ---------- Footer actions ---------- */
+
+.share-modal .share-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 19px;
+  border-top: 1px solid var(--share-border);
+}
+
+.share-modal .share-cancel-button,
+.share-modal .share-submit-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 43px;
+  padding: 0 19px;
+  border-radius: 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    opacity 150ms ease;
+}
+
+.share-modal .share-cancel-button {
+  color: var(--share-text);
+  background: var(--share-surface);
+  border: 1px solid var(--share-border);
+}
+
+.share-modal .share-cancel-button:hover:not(:disabled) {
+  background: var(--share-hover);
+  border-color: color-mix(
+    in srgb,
+    var(--share-text) 20%,
+    var(--share-border)
+  );
+}
+
+.share-modal .share-submit-button {
+  color: #ffffff;
+  background: var(--share-accent);
+  border: 1px solid var(--share-accent);
+  box-shadow: 0 4px 12px color-mix(
+    in srgb,
+    var(--share-accent) 22%,
+    transparent
+  );
+}
+
+.share-modal .share-submit-button:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 7px 18px color-mix(
+    in srgb,
+    var(--share-accent) 28%,
+    transparent
+  );
+}
+
+.share-modal .share-cancel-button:disabled,
+.share-modal .share-submit-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ---------- Dark theme polish ---------- */
+
+html.dark .share-modal,
+html[data-theme="dark"] .share-modal,
+.dark .share-modal,
+[data-theme="dark"] .share-modal {
+  color-scheme: dark;
+  box-shadow:
+    0 32px 90px rgba(0, 0, 0, .48),
+    0 8px 24px rgba(0, 0, 0, .25);
+}
+
+html.dark .share-modal .share-recipient-verified,
+html[data-theme="dark"] .share-modal .share-recipient-verified,
+.dark .share-modal .share-recipient-verified,
+[data-theme="dark"] .share-modal .share-recipient-verified {
+  background: rgba(34, 197, 94, .09);
+  border-color: rgba(34, 197, 94, .22);
+}
+
+/* ---------- Responsive layout ---------- */
+
+@media (max-width: 600px) {
+  .share-modal-overlay {
+    align-items: center;
+    padding: 10px;
+  }
+
+  .share-modal {
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+    padding: 20px;
+    border-radius: 18px;
+  }
+
+  .share-modal .share-modal-header {
+    gap: 10px;
+    margin-bottom: 21px;
+    padding-bottom: 18px;
+  }
+
+  .share-modal .share-file-icon {
+    flex-basis: 42px;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+
+  .share-modal .share-modal-header h2 {
+    font-size: 20px;
+  }
+
+  .share-modal .share-modal-file-name {
+    max-width: 230px;
+    font-size: 12px;
+  }
+
+  .share-modal .share-form-section {
+    margin-bottom: 21px;
+  }
+
+  .share-modal .share-expiry-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .share-modal .share-modal-actions {
+    position: sticky;
+    bottom: -20px;
+    margin: 20px -20px -20px;
+    padding: 14px 20px 20px;
+    background: var(--share-raised);
+  }
+
+  .share-modal .share-cancel-button,
+  .share-modal .share-submit-button {
+    flex: 1;
+    padding: 0 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .share-modal {
+    padding: 16px;
+  }
+
+  .share-modal .share-file-heading {
+    gap: 9px;
+  }
+
+  .share-modal .share-modal-header h2 {
+    font-size: 18px;
+  }
+
+  .share-modal .share-modal-file-name {
+    max-width: 185px;
+  }
+
+  .share-modal .share-modal-actions {
+    bottom: -16px;
+    margin: 18px -16px -16px;
+    padding: 12px 16px 16px;
+  }
+
+  .share-modal .share-cancel-button,
+  .share-modal .share-submit-button {
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-modal-overlay,
+  .share-modal,
+  .share-modal * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================
+   NOVA SHARE MODAL — FINAL LAYOUT OVERRIDES
+   ========================================== */
+
+/* Two-column layout for sections 02 and 03 */
+.share-modal .share-settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  align-items: start;
+  gap: 22px;
+  width: 100%;
+}
+
+.share-modal .share-settings-grid > .share-form-section {
+  min-width: 0;
+  margin: 0 0 24px;
+}
+
+/* Compact permission panel */
+.share-modal .share-permissions-panel {
+  padding: 6px 14px;
+  background: var(--surface, #171923);
+  border: 1px solid var(--border, #303344);
+  border-radius: 14px;
+}
+
+.share-modal .share-permission-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 0;
+}
+
+.share-modal .share-permission-option input[type="checkbox"] {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: var(--primary, #7950f2);
+}
+
+/* Compact expiry panel */
+.share-modal .share-expiry-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 5px 13px;
+  background: var(--surface, #171923);
+  border: 1px solid var(--border, #303344);
+  border-radius: 14px;
+}
+
+.share-modal .share-expiry-option {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 11px;
+  min-height: 43px;
+  padding: 9px 2px;
+  color: var(--text, #f5f5fb);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.share-modal .share-expiry-option + .share-expiry-option {
+  border-top: 1px solid var(--border, #303344);
+}
+
+.share-modal .share-expiry-option.selected {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Stop global input rules from enlarging radio buttons */
+.share-modal .share-expiry-option input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  display: inline-grid;
+  place-content: center;
+  background: transparent;
+  border: 1.5px solid #7b8297;
+  border-radius: 50%;
+  box-shadow: none;
+}
+
+.share-modal .share-expiry-option input[type="radio"]::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  transform: scale(0);
+}
+
+.share-modal .share-expiry-option input[type="radio"]:checked {
+  background: var(--primary, #7950f2);
+  border-color: var(--primary, #7950f2);
+  box-shadow: 0 0 0 3px rgba(121, 80, 242, 0.14);
+}
+
+.share-modal .share-expiry-option input[type="radio"]:checked::before {
+  transform: scale(1);
+}
+
+/* NOVA purple focus state */
+.share-modal .share-expiry-option input[type="radio"]:focus-visible,
+.share-modal .share-permission-option input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--primary, #7950f2);
+  outline-offset: 3px;
+}
+
+/* Match NOVA theme */
+.share-modal .share-section-number {
+  color: var(--primary, #a78bfa);
+  background: rgba(121, 80, 242, 0.14);
+}
+
+.share-modal .share-modal-actions {
+  border-top: 1px solid var(--border, #303344);
+}
+
+.share-modal .share-submit-button {
+  background: var(--primary, #7950f2);
+  border-color: var(--primary, #7950f2);
+}
+
+/* Stack sections on smaller screens */
+@media (max-width: 680px) {
+  .share-modal .share-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+
+/* NOVA Share Modal — final spacing polish */
+
+/* Give the modal a little more room on desktop */
+.share-modal {
+  width: min(1020px, calc(100vw - 40px));
+}
+
+/* Align section 04 with the content above */
+.share-modal .share-existing-access {
+  margin-top: 0;
+  padding-top: 22px;
+  border-top: 1px solid var(--border, #292c3a);
+}
+
+.share-modal .share-existing-access > .share-section-heading {
+  margin-bottom: 14px;
+}
+
+/* Make the access row more compact and balanced */
+.share-modal .folder-share-row {
+  min-height: 76px;
+  padding: 13px 15px;
+  border-radius: 13px;
+}
+
+.share-modal .share-access-person {
+  gap: 12px;
+}
+
+.share-modal .share-access-avatar {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+}
+
+/* Keep the remove button from overlapping its text */
+.share-modal .share-remove-access {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Footer spacing */
+.share-modal .share-modal-actions {
+  margin-top: 22px;
+  padding-top: 17px;
+  padding-bottom: 22px;
+}
+
+/* Let the modal content scroll without clipping */
+.share-modal {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border, #292c3a) transparent;
+}
+
+/* Smaller screens */
+@media (max-width: 680px) {
+  .share-modal {
+    width: calc(100vw - 20px);
+  }
+
+  .share-modal .folder-share-row {
+    gap: 8px;
+    padding: 11px;
+  }
+
+  .share-modal .share-access-avatar {
+    flex-basis: 34px;
+    width: 34px;
+    height: 34px;
+  }
+}
+
+
+/* NOVA FIX — recipient suggestions must not push other sections down */
+
+.share-modal .recipient-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+/* Keep the suggestions dropdown attached to the email field */
+.share-modal .recipient-autocomplete .recipient-suggestions {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 8px);
+  right: 0;
+  left: 0;
+  width: 100%;
+  max-height: 220px;
+  margin: 0;
+  overflow-y: auto;
+  background: var(--surface-elevated, #191b26);
+  border: 1px solid var(--border, #292c3a);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* Do not let the empty suggestions message look like a full section */
+.share-modal .recipient-autocomplete .recipient-suggestions-empty {
+  padding: 12px 14px;
+  color: var(--text-muted, #9ba4bb);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Ensure the two-column layout stays aligned */
+.share-modal .share-settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  align-items: start;
+  gap: 22px;
+  width: 100%;
+}
+
+@media (max-width: 680px) {
+  .share-modal .share-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+/* NOVA — Fix the Remove button in People with access */
+
+.share-modal .folder-share-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.share-modal .share-access-person {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.share-modal .share-access-person-info {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.share-modal .share-remove-access {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  min-height: 40px;
+  margin-left: auto;
+  padding: 0 14px;
+  white-space: nowrap;
+  line-height: 1;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.share-modal .share-remove-access:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+@media (max-width: 480px) {
+  .share-modal .folder-share-row {
+    gap: 9px;
+    padding: 12px;
+  }
+
+  .share-modal .share-remove-access {
+    min-width: 68px;
+    padding: 0 10px;
+  }
+}
+
+
+/* Scrollable list of people with access */
+.share-access-scroll {
+  max-height: 260px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 6px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #6d4aff transparent;
+}
+
+.share-access-scroll .folder-share-row {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+/* Chrome, Edge and Safari */
+.share-access-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.share-access-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.share-access-scroll::-webkit-scrollbar-thumb {
+  background: #6d4aff;
+  border-radius: 10px;
+}
+
+/* NOVA Share File modal — width override */
+.share-modal-overlay .share-modal {
+  width: min(760px, calc(100vw - 48px));
+  max-width: 760px;
+  box-sizing: border-box;
+}
+
+
+
+
+/* =========================================
+   NOVA — SHARE FOLDER MODAL ONLY
+   Does not affect ShareFileModal
+   ========================================= */
+
+.share-folder-modal-overlay .share-folder-modal {
+  width: min(760px, calc(100vw - 48px));
+  max-width: 760px;
+  max-height: min(860px, calc(100dvh - 48px));
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Header */
+.share-folder-modal .share-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 24px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--share-border, #303443);
+}
+
+.share-folder-modal .share-file-heading {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+.share-folder-modal .share-file-heading-info {
+  min-width: 0;
+}
+
+.share-folder-modal .share-modal-file-name {
+  overflow-wrap: anywhere;
+}
+
+/* Numbered section headings */
+.share-folder-modal .share-section-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 0 0 22px;
+}
+
+.share-folder-modal .share-section-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.share-folder-modal .share-section-heading h3,
+.share-folder-modal .share-section-heading p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.share-folder-modal .share-section-number {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+}
+
+/* Sections */
+.share-folder-modal .share-form-section {
+  padding-bottom: 24px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--share-border, #303443);
+}
+
+/* Email field */
+.share-folder-modal .recipient-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+.share-folder-modal .recipient-autocomplete > input,
+.share-folder-modal .share-expiry-section select,
+.share-folder-modal .share-custom-expiry input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.share-folder-modal .share-field-label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+/* Permissions */
+.share-folder-modal .share-permissions {
+  display: flex;
+  flex-direction: column;
+}
+
+.share-folder-modal .share-permission-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--share-border, #303443);
+}
+
+.share-folder-modal .share-permission-option:last-child {
+  border-bottom: 0;
+}
+
+.share-folder-modal .share-permission-option input {
+  flex: 0 0 auto;
+  margin-top: 3px;
+}
+
+.share-folder-modal .share-permission-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.share-folder-modal .share-permission-option small {
+  line-height: 1.5;
+}
+
+/* Expiry */
+.share-folder-modal .share-custom-expiry {
+  margin-top: 14px;
+}
+
+.share-folder-modal .share-modal-hint {
+  margin-top: 12px;
+  line-height: 1.5;
+}
+
+/* Action buttons */
+.share-folder-modal .share-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 0 26px;
+  border-bottom: 1px solid var(--share-border, #303443);
+}
+
+/* Section 04: People with access */
+.share-folder-modal .share-existing-access {
+  margin-top: 0;
+  padding-top: 26px;
+  border-top: 0;
+}
+
+.share-folder-modal .share-existing-access .share-section-heading {
+  margin-bottom: 22px;
+}
+
+.share-folder-modal .folder-shares-list {
+  display: grid;
+  gap: 10px;
+}
+
+.share-folder-modal .folder-share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--share-border, #303443);
+  border-radius: 14px;
+}
+
+.share-folder-modal .folder-share-person {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.share-folder-modal .folder-share-avatar {
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--share-accent-soft, rgba(139, 92, 246, 0.12));
+  color: var(--share-accent, #8b5cf6);
+  font-weight: 700;
+}
+
+.share-folder-modal .folder-share-person-details {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.share-folder-modal .folder-share-person-details > span,
+.share-folder-modal .folder-share-person-details small {
+  overflow-wrap: anywhere;
+}
+
+.share-folder-modal .folder-share-person-details small {
+  line-height: 1.6;
+}
+
+.share-folder-modal .folder-share-remove {
+  flex: 0 0 auto;
+}
+
+.share-folder-modal .share-modal-note {
+  margin-top: 22px;
+  line-height: 1.6;
+}
+
+/* Recipient dropdown */
+.share-folder-modal .recipient-suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  border: 1px solid var(--share-border, #303443);
+  border-radius: 14px;
+  background: var(--share-raised, #191b25);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
+}
+
+.share-folder-modal .recipient-suggestions-header,
+.share-folder-modal .recipient-suggestion-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.share-folder-modal .recipient-suggestion-row {
+  justify-content: initial;
+}
+
+.share-folder-modal .recipient-suggestion-select {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.share-folder-modal .recipient-suggestion-email {
+  overflow-wrap: anywhere;
+}
+
+.share-folder-modal .recipient-suggestions-empty {
+  padding: 12px;
+  margin: 0;
+}
+
+.share-folder-modal .recipient-suggestion-remove {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .share-folder-modal-overlay .share-folder-modal {
+    width: calc(100vw - 24px);
+    max-width: none;
+    max-height: calc(100dvh - 24px);
+    padding: 20px;
+  }
+
+  .share-folder-modal .folder-share-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .share-folder-modal .folder-share-remove {
+    align-self: flex-end;
+  }
+}
+
+
+/* =========================================
+   SHARE FOLDER — MATCH SHARE FILE DESIGN
+   ========================================= */
+
+.share-folder-modal .share-folder-options-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.share-folder-modal .share-folder-permissions-section {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.share-folder-modal .share-folder-permissions-section
+  .share-section-heading,
+.share-folder-modal .share-folder-expiry-section
+  .share-section-heading {
+  margin-bottom: 20px;
+}
+
+.share-folder-modal .share-folder-permissions-section .share-permissions {
+  padding: 10px 18px;
+  border: 1px solid var(--share-border, #303443);
+  border-radius: 18px;
+  background: var(--share-surface, #11131b);
+}
+
+.share-folder-modal .share-folder-permissions-section
+  .share-permission-option {
+  padding: 17px 0;
+  gap: 14px;
+  border-bottom: 1px solid var(--share-border, #303443);
+}
+
+.share-folder-modal .share-folder-permissions-section
+  .share-permission-option:last-child {
+  border-bottom: 0;
+}
+
+.share-folder-modal .share-folder-permissions-section
+  .share-permission-option small {
+  line-height: 1.5;
+}
+
+.share-folder-modal .share-folder-expiry-section {
+  min-width: 0;
+}
+
+.share-folder-modal .share-folder-expiry-options {
+  padding: 0 18px;
+  border: 1px solid var(--share-border, #303443);
+  border-radius: 18px;
+  background: var(--share-surface, #11131b);
+}
+
+.share-folder-modal .share-folder-expiry-option {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 66px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--share-border, #303443);
+  cursor: pointer;
+}
+
+.share-folder-modal .share-folder-expiry-option:last-child {
+  border-bottom: 0;
+}
+
+.share-folder-modal .share-folder-expiry-option input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--share-accent, #8b5cf6);
+}
+
+.share-folder-modal .share-folder-expiry-option span {
+  font-weight: 600;
+}
+
+.share-folder-modal .share-folder-expiry-option.selected span {
+  color: var(--share-accent, #8b5cf6);
+}
+
+.share-folder-modal .share-custom-expiry {
+  margin-top: 14px;
+}
+
+.share-folder-modal .share-custom-expiry input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 650px) {
+  .share-folder-modal .share-folder-options-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+}
+
+
+/* ==========================================
+   NOVA — Share Folder sizing adjustments
+   Match ShareFileModal without affecting it
+   ========================================== */
+
+/* Match the file modal's section spacing */
+.share-folder-modal .share-section-heading {
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 13px;
+}
+
+.share-folder-modal .share-section-number {
+  flex: 0 0 27px;
+  width: 27px;
+  height: 27px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.share-folder-modal .share-section-heading h3 {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.share-folder-modal .share-section-heading p {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Match the file modal's permission panel */
+.share-folder-modal .share-folder-permissions-section .share-permissions {
+  gap: 0;
+  padding: 4px 13px;
+  border-radius: 14px;
+}
+
+.share-folder-modal .share-folder-permissions-section
+.share-permission-option {
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 0;
+  margin: 0;
+}
+
+.share-folder-modal .share-folder-permissions-section
+.share-permission-option + .share-permission-option {
+  border-top: 1px solid var(--share-border, #303443);
+}
+
+.share-folder-modal .share-folder-permissions-section
+.share-permission-option input[type="checkbox"] {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: var(--share-accent, #7950f2);
+}
+
+.share-folder-modal .share-folder-permissions-section
+.share-permission-option strong {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.share-folder-modal .share-folder-permissions-section
+.share-permission-option small {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+/* Match the file modal's compact expiry panel */
+.share-folder-modal .share-folder-expiry-options {
+  gap: 0;
+  padding: 5px 13px;
+  border-radius: 14px;
+}
+
+.share-folder-modal .share-folder-expiry-option {
+  gap: 11px;
+  min-height: 43px;
+  padding: 9px 2px;
+  border-radius: 0;
+  font-size: 12px;
+}
+
+.share-folder-modal .share-folder-expiry-option
++ .share-folder-expiry-option {
+  border-top: 1px solid var(--share-border, #303443);
+}
+
+.share-folder-modal .share-folder-expiry-option input[type="radio"] {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--share-accent, #7950f2);
+}
+
+.share-folder-modal .share-folder-expiry-option span {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* Keep the two columns aligned */
+.share-folder-modal .share-folder-options-grid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 22px;
+}
+
+/* Match the file modal's footer spacing */
+.share-folder-modal .share-modal-actions {
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 17px;
+  padding-bottom: 22px;
+}
+
+@media (max-width: 680px) {
+  .share-folder-modal .share-folder-options-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+}
+
+
+/* ==========================================
+   NOVA — Share Folder recipient UI sizing
+   Folder modal only
+   ========================================== */
+
+/* Previous recipients dropdown */
+.share-folder-modal .recipient-suggestions {
+  padding: 6px;
+  border-radius: 14px;
+}
+
+.share-folder-modal .recipient-suggestions-header {
+  gap: 10px;
+  padding: 8px 9px;
+  font-size: 11px;
+}
+
+.share-folder-modal .recipient-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px;
+  border-radius: 10px;
+}
+
+.share-folder-modal .recipient-suggestion-select {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+}
+
+.share-folder-modal .recipient-suggestion-avatar {
+  flex: 0 0 35px;
+  width: 35px;
+  height: 35px;
+  font-size: 12px;
+}
+
+.share-folder-modal .recipient-suggestion-select > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-folder-modal .recipient-suggestion-remove {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+}
+
+/* Verified / account found card */
+.share-folder-modal .share-recipient-verified {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 11px 12px;
+  border-radius: 12px;
+}
+
+.share-folder-modal .share-verified-icon {
+  display: grid;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.share-folder-modal .share-recipient-verified > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.share-folder-modal .share-recipient-verified strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.share-folder-modal .share-recipient-verified p {
+  margin: 3px 0 0;
+  font-size: 11px;
+}
+
+.share-folder-modal .share-verified-badge {
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+/* Recipient status / validation message */
+.share-folder-modal .share-recipient-status {
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Prevent oversized elements on smaller screens */
+@media (max-width: 480px) {
+  .share-folder-modal .share-recipient-verified {
+    flex-wrap: wrap;
+  }
+
+  .share-folder-modal .share-verified-badge {
+    margin-left: 42px;
+  }
+}
+
+
+
+/* ShareFolderModal — registered account card */
+.share-folder-modal .share-folder-account-found {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  padding: 12px 15px;
+  border: 1px solid rgba(34, 197, 94, 0.22);
+  border-radius: 14px;
+  background: rgba(22, 163, 74, 0.12);
+}
+
+.share-folder-modal .share-folder-account-check {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(22, 163, 74, 0.15);
+  color: #22c55e;
+  font-size: 23px;
+}
+
+.share-folder-modal .share-folder-account-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.share-folder-modal .share-folder-account-info strong {
+  display: block;
+  color: #f3f4f6;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.share-folder-modal .share-folder-account-info p {
+  margin: 2px 0 0;
+  color: #9ca3af;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.share-folder-modal .share-folder-account-badge {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: rgba(22, 163, 74, 0.16);
+  color: #22c55e;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .share-folder-modal .share-folder-account-found {
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .share-folder-modal .share-folder-account-check {
+    flex-basis: 34px;
+    width: 34px;
+    height: 34px;
+    font-size: 20px;
+  }
+}
+
+
+/* ShareFolderModal — account verification status */
+.share-folder-modal .recipient-status {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 50px;
+  box-sizing: border-box;
+  margin-top: 10px;
+  padding: 12px 15px;
+  border: 1px solid var(--share-border, #252936);
+  border-radius: 14px;
+  background: var(--share-hover, #1d202b);
+  color: var(--share-muted, #929bb0);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.share-folder-modal .recipient-status p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.share-folder-modal .recipient-status-checking {
+  border-color: var(--share-border, #252936);
+  background: var(--share-hover, #1d202b);
+  color: var(--share-muted, #929bb0);
+}
+
+.share-folder-modal .recipient-status-registered {
+  border-color: rgba(34, 197, 94, 0.22);
+  background: rgba(22, 163, 74, 0.12);
+  color: #22c55e;
+}
+
+.share-folder-modal .recipient-status-unregistered,
+.share-folder-modal .recipient-status-self,
+.share-folder-modal .recipient-status-error {
+  border-color: rgba(239, 68, 68, 0.22);
+  background: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+}
+
+.share-folder-modal .recipient-status-registered p,
+.share-folder-modal .recipient-status-unregistered p,
+.share-folder-modal .recipient-status-self p,
+.share-folder-modal .recipient-status-error p {
+  color: inherit;
+}
+
+@media (max-width: 480px) {
+  .share-folder-modal .recipient-status {
+    padding: 10px 12px;
+  }
+}
+
+
+/* Remove the outer wrapper styling around the folder's account card */
+.share-folder-modal .recipient-status:has(.share-folder-account-found) {
+  display: block;
+  min-height: 0;
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+/* Let the inner green card handle the appearance */
+.share-folder-modal .recipient-status:has(.share-folder-account-found)
+.share-folder-account-found {
+  margin-top: 10px;
+}
+
+
+
+/* Folder modal — Section 04 */
+.share-modal.share-folder-modal .share-existing-access {
+  margin-top: 32px !important;
+  padding-top: 28px !important;
+  border-top: 1px solid var(--share-border) !important;
+}
+
+
+/* Section 04 — move description below the heading */
+.share-modal.share-folder-modal
+  .share-existing-access
+  .share-section-heading > div > p {
+  transform: none !important;
+  margin-top: 4px !important;
+}
+
+
+/* Fix folder icon sizing in the folder-sharing header */
+.share-folder-modal .share-file-icon {
+  width: 62px;
+  min-width: 62px;
+  height: 62px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 18px;
+}
+
+.share-folder-modal .share-file-icon span {
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+
+/* Folder modal — scrollable Section 04 recipient list */
+.share-folder-modal .folder-shares-list {
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #8b5cf6 transparent;
+}
+
+.share-folder-modal .folder-shares-list::-webkit-scrollbar {
+  width: 7px;
+}
+
+.share-folder-modal .folder-shares-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.share-folder-modal .folder-shares-list::-webkit-scrollbar-thumb {
+  background: #8b5cf6;
+  border-radius: 10px;
+}
+
+.share-folder-modal .folder-shares-list::-webkit-scrollbar-thumb:hover {
+  background: #a78bfa;
+}
+
+
+/* Folder modal — polished header */
+.share-folder-modal .share-folder-header {
+  align-items: flex-start;
+}
+
+.share-folder-modal .share-folder-header .share-file-heading {
+  align-items: center;
+  gap: 22px;
+}
+
+.share-folder-modal .share-folder-header-icon {
+  width: 80px;
+  min-width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #a78bfa;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 22px;
+  box-sizing: border-box;
+}
+
+.share-folder-modal .share-folder-header-icon svg {
+  width: 34px;
+  height: 34px;
+}
+
+.share-folder-modal .share-folder-header .share-modal-eyebrow {
+  margin-bottom: 8px;
+  letter-spacing: 1.4px;
+}
+
+.share-folder-modal .share-folder-header .share-folder-header-name {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 5px 10px;
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.18);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.share-folder-modal .share-folder-header .share-file-meta {
+  display: block;
+  margin-top: 5px;
+}
+
+@media (max-width: 600px) {
+  .share-folder-modal .share-folder-header .share-file-heading {
+    gap: 14px;
+  }
+
+  .share-folder-modal .share-folder-header-icon {
+    width: 58px;
+    min-width: 58px;
+    height: 58px;
+    border-radius: 16px;
+  }
+
+  .share-folder-modal .share-folder-header-icon svg {
+    width: 27px;
+    height: 27px;
+  }
+}
+
+
+/* File modal — polished header */
+.share-modal:not(.share-folder-modal) .share-file-modal-header {
+  align-items: flex-start;
+}
+
+.share-modal:not(.share-folder-modal) .share-file-modal-header .share-file-heading {
+  align-items: center;
+  gap: 22px;
+}
+
+.share-modal:not(.share-folder-modal) .share-file-header-icon {
+  width: 80px;
+  min-width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #a78bfa;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 22px;
+  box-sizing: border-box;
+}
+
+.share-modal:not(.share-folder-modal) .share-file-header-icon svg {
+  display: block;
+  width: 34px;
+  height: 34px;
+  stroke: currentColor;
+}
+
+.share-modal:not(.share-folder-modal) .share-file-modal-header .share-modal-eyebrow {
+  margin-bottom: 8px;
+  letter-spacing: 1.4px;
+}
+
+.share-modal:not(.share-folder-modal) .share-file-modal-header .share-file-header-name {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 5px 10px;
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.18);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.share-modal:not(.share-folder-modal) .share-file-modal-header .share-file-meta {
+  display: block;
+  margin-top: 5px;
+}
+
+@media (max-width: 600px) {
+  .share-modal:not(.share-folder-modal) .share-file-modal-header .share-file-heading {
+    gap: 14px;
+  }
+
+  .share-modal:not(.share-folder-modal) .share-file-header-icon {
+    width: 58px;
+    min-width: 58px;
+    height: 58px;
+    border-radius: 16px;
+  }
+
+  .share-modal:not(.share-folder-modal) .share-file-header-icon svg {
+    width: 27px;
+    height: 27px;
+  }
+}
+
+
+/* Fix Section 04 heading visibility in both themes */
+.share-modal .share-existing-access .share-section-heading h3 {
+  color: var(--share-text, var(--text-primary, #f8fafc));
+  font-size: 16px;
+  line-height: 1.4;
+  margin: 0;
+  position: relative;
+  transform: none;
+}
+
+.share-modal .share-existing-access .share-section-heading > div > p {
+  margin-top: 4px !important;
+  transform: none !important;
+  line-height: 1.5;
+}

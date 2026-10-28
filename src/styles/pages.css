@@ -892,32 +892,33 @@
    LIST VIEW
    ========================================================= */
 
+
 .all-files-list {
   width: 100%;
   overflow: visible;
-
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
-
 
 .all-file-row {
   position: relative;
   min-height: 76px;
-
   display: grid;
   grid-template-columns: 24px 44px minmax(0, 1fr) 100px 110px 44px;
-  gap: 12px;
-
+  gap: 16px;
   align-items: center;
   padding: 12px 18px;
-
+  background: transparent;
+  border: none;
   border-bottom: 1px solid var(--border);
-
+  border-radius: 0;
   transition: background 0.2s ease;
 }
 
+.all-file-row:last-child {
+  border-bottom: none;
+}
 
 .all-file-row:hover {
   background: var(--surface-hover);
@@ -1403,9 +1404,12 @@
 }
 
 /* File list */
+/* File list — remove the outer rectangle */
 .all-files-list {
-  background: var(--surface);
-  border-color: var(--border);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .all-file-row {
