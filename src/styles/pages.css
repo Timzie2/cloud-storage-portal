@@ -6910,3 +6910,58 @@
   font-size: 13px;
 }
 }
+
+
+/* Shared page: received item permissions */
+.shared-permissions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.shared-permission-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.shared-permission-list span {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 7px;
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.shared-permission-list .permission-allowed {
+  background: color-mix(in srgb, #16a34a 12%, var(--surface));
+  color: #16a34a;
+}
+
+.shared-permission-list .permission-limited {
+  background: var(--surface-elevated);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.shared-expiry {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+@media (max-width: 760px) {
+  .shared-permissions {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .shared-permission-list {
+    gap: 5px;
+  }
+}

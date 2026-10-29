@@ -14,9 +14,18 @@ import {
   Folder,
   ChevronLeft,
   Copy,
+  ChevronDown,
+  ChevronUp,
+  CalendarDays,
+  Clock3,
+  Pencil,
+  Check,
+  Ban,
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
+import { supabase } from "../services/supabase";
+import "../styles/sharedpage.css";
 
 import {
   getFileShares,
@@ -85,6 +94,24 @@ function getFileIcon(mimeType) {
 }
 
 
+function getInitials(name = "") {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "N";
+  return parts.slice(0, 2).map((part) => part[0].toUpperCase()).join("");
+}
+
+function getExpiryLabel(expiresAt) {
+  if (!expiresAt) return "Never expires";
+  const date = new Date(expiresAt);
+  if (Number.isNaN(date.getTime())) return "Expiry unavailable";
+  if (date <= new Date()) return "Share expired";
+  return `Expires ${formatDate(expiresAt)}`;
+}
+
+function getPermissionLabel(allowed) {
+  return allowed ? "Allowed" : "Not allowed";
+}
+
 function getDestinationFolderPath(folder, folders) {
   const parts = [folder.name];
   let parentId = folder.parent_id;
@@ -109,6 +136,12 @@ function Shared() {
 
   const [sharedByMe, setSharedByMe] = useState([]);
   const [sharedWithMe, setSharedWithMe] = useState([]);
+  const [senderProfiles, setSenderProfiles] = useState({});
+  const [senderEmails, setSenderEmails] = useState({});
+  const [recipientProfiles, setRecipientProfiles] = useState({});
+  const [expandedReceivedShare, setExpandedReceivedShare] = useState(null);
+  const [expandedOwnedShare, setExpandedOwnedShare] = useState(null);
+  const [expandedOwnedFolderShare, setExpandedOwnedFolderShare] = useState(null);
   const [foldersSharedByMe, setFoldersSharedByMe] = useState([]);
   const [foldersSharedWithMe, setFoldersSharedWithMe] = useState([]);
   const [folderRevokeTarget, setFolderRevokeTarget] = useState(null);
@@ -242,7 +275,83 @@ async function loadShares() {
     setSharedByMe(ownedShares);
     setSharedWithMe(receivedShares);
     setFoldersSharedByMe(ownedFolderShares);
+
+
+    // Fetch recipient profiles securely through the Edge Function.
+    const recipientEmails = [
+      ...new Set(
+        [
+          ...ownedShares.map((share) => share.shared_with_email),
+          ...ownedFolderShares.map((share) => share.shared_with_email),
+        ]
+          .filter(Boolean)
+          .map((email) => email.trim().toLowerCase())
+      ),
+    ];
+
+    if (recipientEmails.length > 0) {
+      const { data: recipientData, error: recipientError } =
+        await supabase.functions.invoke("shared-sender-emails", {
+          body: { recipient_emails: recipientEmails },
+        });
+
+      if (recipientError) {
+        console.warn("Could not load recipient profiles:", recipientError);
+        setRecipientProfiles({});
+      
+} else {
+  setRecipientProfiles(
+    recipientData?.recipient_profiles ?? {}
+  );
+}
+
+    } else {
+      setRecipientProfiles({});
+    }
+
+
     setFoldersSharedWithMe(receivedFolderShares);
+
+    // Fetch only profile fields intended for display; auth emails are not exposed client-side.
+    const ownerIds = [...new Set([
+      ...receivedShares.map((share) => share.owner_id),
+      ...receivedFolderShares.map((share) => share.owner_id),
+    ].filter(Boolean))];
+
+    if (ownerIds.length) {
+      try {
+        
+const { data: profiles, error: profileError } = await supabase
+  .from("public_profiles")
+  .select("id, display_name, avatar_url")
+  .in("id", ownerIds);
+
+        if (profileError) throw profileError;
+        setSenderProfiles(
+          Object.fromEntries((profiles ?? []).map((profile) => [profile.id, profile]))
+        );
+
+const { data: emailData, error: emailError } =
+  await supabase.functions.invoke("shared-sender-emails", {
+    body: { owner_ids: ownerIds },
+  });
+
+if (emailError) {
+  console.warn("Could not load sender emails:", emailError);
+  setSenderEmails({});
+} else {
+  setSenderEmails(emailData?.emails ?? {});
+}
+
+      } catch (profileError) {
+  console.warn("Could not load sender profiles:", profileError);
+  setSenderProfiles({});
+  setSenderEmails({});
+}
+    } else {
+      setSenderProfiles({});
+      setSenderEmails({});
+    }
   } catch (err) {
     console.error("Error loading shared items:", err);
     setError("Could not load shared items.");
@@ -690,42 +799,186 @@ async function handleFolderRevoke() {
                       </p>
                     </div>
 
-                    <div className="shared-role">
-                      <UserRound size={15} />
+                    
+<div className="shared-received-sender-inline">
+  {(() => {
+    const recipientProfile =
+      recipientProfiles[
+        (share.shared_with_email || "").trim().toLowerCase()
+      ];
 
-                      <div>
-                        <span className="shared-role-label">
-                          Shared with
-                        </span>
+    return (
+      <>
+        <span className="shared-avatar shared-avatar-small">
+          {recipientProfile?.avatar_url ? (
+            <img src={recipientProfile.avatar_url} alt="" />
+          ) : (
+            getInitials(
+              recipientProfile?.display_name ||
+              share.shared_with_email ||
+              "Recipient"
+            )
+          )}
+        </span>
 
-                        <strong>
-                          {share.shared_with_email}
-                        </strong>
-                      </div>
-                    </div>
+        <span className="shared-sender-inline-text">
+          <small>Shared with</small>
+          <strong>
+            {recipientProfile?.display_name ||
+              share.shared_with_email ||
+              "Unknown recipient"}
+          </strong>
+          <small>
+            {share.shared_with_email || ""}
+          </small>
+        </span>
+      </>
+    );
+  })()}
+</div>
 
                     <div className="shared-item-actions">
                       <button
+                        type="button"
+                        className="shared-action-btn shared-expand-button"
+                        aria-label={
+                          expandedOwnedShare === share.id
+                            ? "Collapse sharing details"
+                            : "Expand sharing details"
+                        }
+                        aria-expanded={expandedOwnedShare === share.id}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setExpandedOwnedShare((current) =>
+                            current === share.id ? null : share.id
+                          );
+                        }}
+                        title="Sharing details"
+                      >
+                        {expandedOwnedShare === share.id ? (
+                          <ChevronUp size={17} />
+                        ) : (
+                          <ChevronDown size={17} />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
                         className="shared-action-btn"
                         onClick={(event) => {
-  event.stopPropagation();
-  handleDownload(file);
-}}
+                          event.stopPropagation();
+                          handleDownload(file);
+                        }}
                         title="Download"
                       >
                         <Download size={17} />
                       </button>
 
                       <button
+                        type="button"
                         className="shared-revoke-btn"
                         onClick={(event) => {
-  event.stopPropagation();
-  setRevokeTarget(share);
-}}
+                          event.stopPropagation();
+                          setRevokeTarget(share);
+                        }}
                       >
                         Revoke
                       </button>
                     </div>
+
+                    {expandedOwnedShare === share.id && (
+                      <div
+                        className="shared-details-panel"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div className="shared-details-column shared-sender-column">
+                          <h4>Shared with</h4>
+                          
+<div className="shared-sender-profile">
+  {(() => {
+    const recipientProfile =
+      recipientProfiles[
+        (share.shared_with_email || "").trim().toLowerCase()
+      ];
+
+    return (
+      <>
+        <span className="shared-avatar">
+          {recipientProfile?.avatar_url ? (
+            <img src={recipientProfile.avatar_url} alt="" />
+          ) : (
+            getInitials(
+              recipientProfile?.display_name ||
+              share.shared_with_email ||
+              "Recipient"
+            )
+          )}
+        </span>
+        <div>
+          <strong>
+            {recipientProfile?.display_name ||
+              share.shared_with_email ||
+              "Unknown recipient"}
+          </strong>
+          <span className="shared-detail-muted">
+            {share.shared_with_email || ""}
+          </span>
+        </div>
+      </>
+    );
+  })()}
+</div>
+
+                        </div>
+
+                        <div className="shared-details-column">
+                          <h4>Permissions granted</h4>
+                          <div className="shared-permission-grid">
+                            <div className="shared-permission-tile is-allowed">
+                              <Eye size={18} />
+                              <span><strong>View</strong><small>Allowed</small></span>
+                            </div>
+                            <div className={`shared-permission-tile ${share.can_edit ? "is-allowed" : "is-denied"}`}>
+                              <Pencil size={18} />
+                              <span><strong>Edit</strong><small>{getPermissionLabel(Boolean(share.can_edit))}</small></span>
+                            </div>
+                            <div className={`shared-permission-tile ${share.can_download ? "is-allowed" : "is-denied"}`}>
+                              {share.can_download ? <Check size={18} /> : <Ban size={18} />}
+                              <span><strong>Download</strong><small>{getPermissionLabel(Boolean(share.can_download))}</small></span>
+                            </div>
+                            <div className={`shared-permission-tile ${share.can_copy ? "is-allowed" : "is-denied"}`}>
+                              {share.can_copy ? <Check size={18} /> : <Ban size={18} />}
+                              <span><strong>Copy to My Files</strong><small>{getPermissionLabel(Boolean(share.can_copy))}</small></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="shared-details-column shared-sharing-column">
+                          <h4>Sharing details</h4>
+                          <div className="shared-detail-line">
+                            <Clock3 size={18} />
+                            <span>
+                              <small>Expires</small>
+                              <strong className={share.expires_at && new Date(share.expires_at) <= new Date() ? "shared-expired-text" : ""}>
+                                {getExpiryLabel(share.expires_at)}
+                              </strong>
+                            </span>
+                          </div>
+                          <div className="shared-detail-line">
+                            <CalendarDays size={18} />
+                            <span>
+                              <small>Shared on</small>
+                              <strong>{formatDate(share.created_at)}</strong>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="shared-details-footer">
+                          <span>File sharing details</span>
+                          <span>{share.can_edit ? "Editing enabled" : "View only"}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -769,7 +1022,7 @@ async function handleFolderRevoke() {
       {foldersSharedByMe.map((share) => (
         <div className="shared-item" key={share.id}>
           <div className="shared-file-icon">
-            <File size={20} />
+            <Folder size={20} />
           </div>
 
           <div className="shared-file-info">
@@ -777,16 +1030,70 @@ async function handleFolderRevoke() {
             <p>Shared {formatDate(share.created_at)}</p>
           </div>
 
-          <div className="shared-role">
-            <UserRound size={15} />
-            <div>
-              <span className="shared-role-label">Shared with</span>
-              <strong>{share.shared_with_email}</strong>
-            </div>
-          </div>
+          
+<div className="shared-received-sender-inline">
+  {(() => {
+    const recipientProfile =
+      recipientProfiles[
+        (share.shared_with_email || "").trim().toLowerCase()
+      ];
+
+    return (
+      <>
+        <span className="shared-avatar shared-avatar-small">
+          {recipientProfile?.avatar_url ? (
+            <img src={recipientProfile.avatar_url} alt="" />
+          ) : (
+            getInitials(
+              recipientProfile?.display_name ||
+              share.shared_with_email ||
+              "Recipient"
+            )
+          )}
+        </span>
+
+        <span className="shared-sender-inline-text">
+          <small>Shared with</small>
+          <strong>
+            {recipientProfile?.display_name ||
+              share.shared_with_email ||
+              "Unknown recipient"}
+          </strong>
+          <small>
+            {share.shared_with_email || ""}
+          </small>
+        </span>
+      </>
+    );
+  })()}
+</div>
+
 
           <div className="shared-item-actions">
             <button
+              type="button"
+              className="shared-action-btn shared-expand-button"
+              aria-label={
+                expandedOwnedFolderShare === share.id
+                  ? "Collapse sharing details"
+                  : "Expand sharing details"
+              }
+              aria-expanded={expandedOwnedFolderShare === share.id}
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpandedOwnedFolderShare((current) =>
+                  current === share.id ? null : share.id
+                );
+              }}
+              title="Sharing details"
+            >
+              {expandedOwnedFolderShare === share.id
+                ? <ChevronUp size={17} />
+                : <ChevronDown size={17} />}
+            </button>
+
+            <button
+              type="button"
               className="shared-revoke-btn"
               onClick={(event) => {
                 event.stopPropagation();
@@ -796,6 +1103,98 @@ async function handleFolderRevoke() {
               Revoke
             </button>
           </div>
+
+          {expandedOwnedFolderShare === share.id && (
+            <div
+              className="shared-details-panel"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="shared-details-column shared-sender-column">
+                <h4>Shared with</h4>
+                
+<div className="shared-sender-profile">
+  {(() => {
+    const recipientProfile =
+      recipientProfiles[
+        (share.shared_with_email || "").trim().toLowerCase()
+      ];
+
+    return (
+      <>
+        <span className="shared-avatar">
+          {recipientProfile?.avatar_url ? (
+            <img src={recipientProfile.avatar_url} alt="" />
+          ) : (
+            getInitials(
+              recipientProfile?.display_name ||
+              share.shared_with_email ||
+              "Recipient"
+            )
+          )}
+        </span>
+
+        <div>
+          <strong>
+            {recipientProfile?.display_name ||
+              share.shared_with_email ||
+              "Unknown recipient"}
+          </strong>
+          <span className="shared-detail-muted">
+            {share.shared_with_email || ""}
+          </span>
+        </div>
+      </>
+    );
+  })()}
+</div>
+
+              </div>
+
+              <div className="shared-details-column">
+                <h4>Permissions granted</h4>
+                <div className="shared-permission-grid">
+                  <div className="shared-permission-tile is-allowed">
+                    <Eye size={18} />
+                    <span><strong>View</strong><small>Allowed</small></span>
+                  </div>
+                  <div className={`shared-permission-tile ${share.can_edit ? "is-allowed" : "is-denied"}`}>
+                    <Pencil size={18} />
+                    <span><strong>Edit</strong><small>{getPermissionLabel(Boolean(share.can_edit))}</small></span>
+                  </div>
+                  <div className={`shared-permission-tile ${share.can_download ? "is-allowed" : "is-denied"}`}>
+                    {share.can_download ? <Check size={18} /> : <Ban size={18} />}
+                    <span><strong>Download</strong><small>{getPermissionLabel(Boolean(share.can_download))}</small></span>
+                  </div>
+                  <div className={`shared-permission-tile ${share.can_copy ? "is-allowed" : "is-denied"}`}>
+                    {share.can_copy ? <Check size={18} /> : <Ban size={18} />}
+                    <span><strong>Copy to My Files</strong><small>{getPermissionLabel(Boolean(share.can_copy))}</small></span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="shared-details-column shared-sharing-column">
+                <h4>Sharing details</h4>
+                <div className="shared-detail-line">
+                  <Clock3 size={18} />
+                  <span>
+                    <small>Expires</small>
+                    <strong className={share.expires_at && new Date(share.expires_at) <= new Date() ? "shared-expired-text" : ""}>
+                      {getExpiryLabel(share.expires_at)}
+                    </strong>
+                  </span>
+                </div>
+                <div className="shared-detail-line">
+                  <CalendarDays size={18} />
+                  <span><small>Shared on</small><strong>{formatDate(share.created_at)}</strong></span>
+                </div>
+              </div>
+
+              <div className="shared-details-footer">
+                <span>Folder sharing details</span>
+                <span>{share.can_edit ? "Editing enabled" : "View only"}</span>
+              </div>
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -843,11 +1242,17 @@ async function handleFolderRevoke() {
   
 
     <span className="shared-count">
-      {currentSharedFolder
-        ? sharedFolderFolders.length + sharedFolderFiles.length
-        : foldersSharedWithMe.length}
-      <span> items</span>
-    </span>
+  {currentSharedFolder
+    ? sharedFolderFolders.length + sharedFolderFiles.length
+    : foldersSharedWithMe.length}
+  <span>
+    {currentSharedFolder
+      ? " items"
+      : foldersSharedWithMe.length === 1
+        ? " folder"
+        : " folders"}
+  </span>
+</span>
   </div>
 
   {currentSharedFolder ? (
@@ -1054,30 +1459,26 @@ title={
   ) : (
     <div className="shared-list">
       {foldersSharedWithMe.map((share) => (
-        
-        <div className="shared-item" key={share.id}>
-          <button
-            type="button"
-            onClick={() => {
-              if (share.folders) {
-                openSharedFolder(share.folders);
-              }
-            }}
-            style={{
-  display: "flex",
-  alignItems: "center",
-  gap: "16px",
-  flex: 1,
-  minWidth: 0,
-  border: 0,
-  background: "transparent",
-  font: "inherit",
-  textAlign: "left",
-  color: "inherit",
-  cursor: "pointer",
-  padding: "0 12px 0 0",
-}}
-          >
+  <div
+    key={share.id}
+    className="shared-item shared-received-folder-content"
+    role="button"
+    tabIndex={share.folders ? 0 : -1}
+  onClick={() => {
+    if (share.folders) {
+      openSharedFolder(share.folders);
+    }
+  }}
+  onKeyDown={(event) => {
+    if (
+      share.folders &&
+      (event.key === "Enter" || event.key === " ")
+    ) {
+      event.preventDefault();
+      openSharedFolder(share.folders);
+    }
+  }}
+>
             <div className="shared-file-icon">
               <Folder size={20} />
             </div>
@@ -1087,16 +1488,48 @@ title={
               <p>Shared {formatDate(share.created_at)}</p>
             </div>
 
-            <div className="shared-role">
-              <UserRound size={15} />
-              <div>
-                <span className="shared-role-label">Access</span>
-                <strong>Shared with you</strong>
-              </div>
-            </div>
-          </button>
+            <div className="shared-received-sender-inline">
+  <span className="shared-avatar shared-avatar-small">
+    {senderProfiles[share.owner_id]?.avatar_url ? (
+      <img
+        src={senderProfiles[share.owner_id].avatar_url}
+        alt=""
+      />
+    ) : (
+      getInitials(
+        senderProfiles[share.owner_id]?.display_name || "NOVA member"
+      )
+    )}
+  </span>
 
-          <div className="shared-item-actions">
+  <span className="shared-sender-inline-text">
+    <small>Shared by</small>
+    <strong>
+      {senderProfiles[share.owner_id]?.display_name || "NOVA member"}
+    </strong>
+    <small className="shared-detail-muted">
+      {senderEmails[share.owner_id] || ""}
+    </small>
+  </span>
+</div>
+
+<div className="shared-item-actions">
+            <button
+              type="button"
+              className="shared-action-btn shared-expand-button"
+              aria-label={expandedReceivedShare === `folder-${share.id}` ? "Collapse sharing details" : "Expand sharing details"}
+              aria-expanded={expandedReceivedShare === `folder-${share.id}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpandedReceivedShare((current) =>
+                  current === `folder-${share.id}` ? null : `folder-${share.id}`
+                );
+              }}
+              title="Sharing details"
+            >
+              {expandedReceivedShare === `folder-${share.id}` ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+            </button>
+
             
 
 <button
@@ -1183,6 +1616,46 @@ setFolderError("");
 
 
           </div>
+
+          {expandedReceivedShare === `folder-${share.id}` && (
+                      <div className="shared-details-panel" onClick={(event) => event.stopPropagation()}>
+                        <div className="shared-details-column shared-sender-column">
+                          <h4>Shared by</h4>
+                          <div className="shared-sender-profile">
+                            <span className="shared-avatar">
+                              {senderProfiles[share.owner_id]?.avatar_url ? (
+                                <img src={senderProfiles[share.owner_id].avatar_url} alt="" />
+                              ) : (
+                                getInitials(senderProfiles[share.owner_id]?.display_name || "NOVA member")
+                              )}
+                            </span>
+                            <div>
+                              <strong>
+  {senderProfiles[share.owner_id]?.display_name || "NOVA member"}
+</strong>
+<span className="shared-detail-muted">
+  {senderEmails[share.owner_id] || "NOVA member profile"}
+</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="shared-details-column">
+                          <h4>Your permissions</h4>
+                          <div className="shared-permission-grid">
+                            <div className="shared-permission-tile is-allowed"><Eye size={18} /><span><strong>View</strong><small>Allowed</small></span></div>
+                            <div className={`shared-permission-tile ${share.can_edit ? "is-allowed" : "is-denied"}`}><Pencil size={18} /><span><strong>Edit</strong><small>{getPermissionLabel(Boolean(share.can_edit))}</small></span></div>
+                            <div className={`shared-permission-tile ${share.can_download ? "is-allowed" : "is-denied"}`}>{share.can_download ? <Check size={18} /> : <Ban size={18} />}<span><strong>Download</strong><small>{getPermissionLabel(Boolean(share.can_download))}</small></span></div>
+                            <div className={`shared-permission-tile ${share.can_copy ? "is-allowed" : "is-denied"}`}>{share.can_copy ? <Check size={18} /> : <Ban size={18} />}<span><strong>Copy to My Files</strong><small>{getPermissionLabel(Boolean(share.can_copy))}</small></span></div>
+                          </div>
+                        </div>
+                        <div className="shared-details-column shared-sharing-column">
+                          <h4>Sharing details</h4>
+                          <div className="shared-detail-line"><Clock3 size={18} /><span><small>Expires</small><strong className={share.expires_at && new Date(share.expires_at) <= new Date() ? "shared-expired-text" : ""}>{getExpiryLabel(share.expires_at)}</strong></span></div>
+                          <div className="shared-detail-line"><CalendarDays size={18} /><span><small>Shared on</small><strong>{formatDate(share.created_at)}</strong></span></div>
+                        </div>
+                        <div className="shared-details-footer"><span>Folder sharing details</span><span>{share.can_edit ? "Editing enabled" : "View only"}</span></div>
+                      </div>
+                    )}
         </div>
 
       ))}
@@ -1289,21 +1762,40 @@ setFolderError("");
                       </p>
                     </div>
 
-                    <div className="shared-role">
-                      <UserRound size={15} />
-
-                      <div>
-                        <span className="shared-role-label">
-                          Access
-                        </span>
-
-                        <strong>
-                          Shared with you
-                        </strong>
-                      </div>
+                    <div className="shared-received-sender-inline">
+                      <span className="shared-avatar shared-avatar-small">
+                        {senderProfiles[share.owner_id]?.avatar_url ? (
+                          <img src={senderProfiles[share.owner_id].avatar_url} alt="" />
+                        ) : (
+                          getInitials(senderProfiles[share.owner_id]?.display_name || "NOVA member")
+                        )}
+                      </span>
+                      <span className="shared-sender-inline-text">
+                        <small>Shared by</small>
+                        <strong>{senderProfiles[share.owner_id]?.display_name || "NOVA member"}</strong>
+                        <small className="shared-detail-muted">
+  {senderEmails[share.owner_id] || ""}
+</small>
+                      </span>
                     </div>
 
                     <div className="shared-item-actions">
+                      <button
+                        type="button"
+                        className="shared-action-btn shared-expand-button"
+                        aria-label={expandedReceivedShare === `file-${share.id}` ? "Collapse sharing details" : "Expand sharing details"}
+                        aria-expanded={expandedReceivedShare === `file-${share.id}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setExpandedReceivedShare((current) =>
+                            current === `file-${share.id}` ? null : `file-${share.id}`
+                          );
+                        }}
+                        title="Sharing details"
+                      >
+                        {expandedReceivedShare === `file-${share.id}` ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+                      </button>
+
                       
 
 <button
@@ -1380,6 +1872,46 @@ setFileError("");
 
 
                     </div>
+
+                    {expandedReceivedShare === `file-${share.id}` && (
+                      <div className="shared-details-panel" onClick={(event) => event.stopPropagation()}>
+                        <div className="shared-details-column shared-sender-column">
+                          <h4>Shared by</h4>
+                          <div className="shared-sender-profile">
+                            <span className="shared-avatar">
+                              {senderProfiles[share.owner_id]?.avatar_url ? (
+                                <img src={senderProfiles[share.owner_id].avatar_url} alt="" />
+                              ) : (
+                                getInitials(senderProfiles[share.owner_id]?.display_name || "NOVA member")
+                              )}
+                            </span>
+                            <div>
+                              <strong>
+  {senderProfiles[share.owner_id]?.display_name || "NOVA member"}
+</strong>
+<span className="shared-detail-muted">
+  {senderEmails[share.owner_id] || "NOVA member profile"}
+</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="shared-details-column">
+                          <h4>Your permissions</h4>
+                          <div className="shared-permission-grid">
+                            <div className="shared-permission-tile is-allowed"><Eye size={18} /><span><strong>View</strong><small>Allowed</small></span></div>
+                            <div className={`shared-permission-tile ${share.can_edit ? "is-allowed" : "is-denied"}`}><Pencil size={18} /><span><strong>Edit</strong><small>{getPermissionLabel(Boolean(share.can_edit))}</small></span></div>
+                            <div className={`shared-permission-tile ${share.can_download ? "is-allowed" : "is-denied"}`}>{share.can_download ? <Check size={18} /> : <Ban size={18} />}<span><strong>Download</strong><small>{getPermissionLabel(Boolean(share.can_download))}</small></span></div>
+                            <div className={`shared-permission-tile ${share.can_copy ? "is-allowed" : "is-denied"}`}>{share.can_copy ? <Check size={18} /> : <Ban size={18} />}<span><strong>Copy to My Files</strong><small>{getPermissionLabel(Boolean(share.can_copy))}</small></span></div>
+                          </div>
+                        </div>
+                        <div className="shared-details-column shared-sharing-column">
+                          <h4>Sharing details</h4>
+                          <div className="shared-detail-line"><Clock3 size={18} /><span><small>Expires</small><strong className={share.expires_at && new Date(share.expires_at) <= new Date() ? "shared-expired-text" : ""}>{getExpiryLabel(share.expires_at)}</strong></span></div>
+                          <div className="shared-detail-line"><CalendarDays size={18} /><span><small>Shared on</small><strong>{formatDate(share.created_at)}</strong></span></div>
+                        </div>
+                        <div className="shared-details-footer"><span>File sharing details</span><span>{share.can_edit ? "Editing enabled" : "View only"}</span></div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
