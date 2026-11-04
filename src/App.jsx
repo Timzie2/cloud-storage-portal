@@ -10,6 +10,7 @@ import Trash from "./pages/Trash";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Favorites from "./pages/Favorites";
+import Documents from "./pages/Documents";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -50,6 +51,10 @@ function AppContent() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/favorites" element={<Favorites />} />
+                        <Route
+              path="/documents/:documentId"
+              element={<Documents />}
+            />
           </Routes>
         </AppLayout>
       ) : (

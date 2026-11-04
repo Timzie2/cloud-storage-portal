@@ -6965,3 +6965,210 @@
     gap: 5px;
   }
 }
+
+/* =========================================
+   OPEN IN NOVA DOCS — MODAL
+========================================= */
+
+.docx-choice-overlay {
+  --docx-modal-bg: #171b27;
+  --docx-option-bg: #202638;
+  --docx-text: #f4f5fb;
+  --docx-muted: #a1a9bc;
+  --docx-border: #343b4e;
+  --docx-hover: rgba(112, 87, 245, 0.12);
+  --docx-accent: var(--accent-color, #7057f5);
+
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(4, 6, 12, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.docx-choice-modal {
+  position: relative;
+  width: min(100%, 500px);
+  padding: 34px;
+  border: 1px solid var(--docx-border);
+  border-radius: 20px;
+  background: var(--docx-modal-bg);
+  color: var(--docx-text);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.45);
+  animation: docxModalIn 0.22s ease-out;
+}
+
+.docx-choice-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--docx-muted);
+  font-size: 24px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.docx-choice-close:hover {
+  background: var(--docx-option-bg);
+  color: var(--docx-text);
+}
+
+.docx-choice-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 22px;
+  border: 1px solid rgba(112, 87, 245, 0.25);
+  border-radius: 15px;
+  background: rgba(112, 87, 245, 0.14);
+  color: var(--docx-accent);
+}
+
+.docx-choice-modal h2 {
+  margin: 0 0 9px;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.docx-choice-modal > p {
+  margin: 0 0 26px;
+  color: var(--docx-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Choice cards */
+
+.docx-choice-options {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.docx-choice-modal .docx-choice-options button {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  width: 100%;
+  min-height: 88px;
+  padding: 19px;
+  border: 1px solid var(--docx-border);
+  border-radius: 14px;
+  background: var(--docx-option-bg);
+  color: var(--docx-text);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.docx-choice-modal .docx-choice-options button:hover {
+  border-color: var(--docx-accent);
+  background: var(--docx-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 18px rgba(112, 87, 245, 0.12);
+}
+
+.docx-choice-options button > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--docx-accent);
+}
+
+.docx-choice-options button span {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.docx-choice-options strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.docx-choice-options small {
+  color: var(--docx-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* Cancel */
+
+.docx-choice-cancel {
+  width: 100%;
+  margin-top: 20px;
+  padding: 12px;
+  border: 1px solid var(--docx-border);
+  border-radius: 11px;
+  background: transparent;
+  color: var(--docx-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.docx-choice-cancel:hover {
+  background: var(--docx-option-bg);
+  color: var(--docx-text);
+}
+
+/* Light theme */
+
+html:not(.dark):not([data-theme="dark"]) .docx-choice-overlay {
+  --docx-modal-bg: #ffffff;
+  --docx-option-bg: #f7f8fc;
+  --docx-text: #202433;
+  --docx-muted: #687084;
+  --docx-border: #e1e4ed;
+  --docx-hover: #f0edff;
+}
+
+/* Animation */
+
+@keyframes docxModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Mobile */
+
+@media (max-width: 480px) {
+  .docx-choice-overlay {
+    padding: 16px;
+  }
+
+  .docx-choice-modal {
+    padding: 28px 20px;
+    border-radius: 17px;
+  }
+
+  .docx-choice-modal h2 {
+    font-size: 21px;
+  }
+
+  .docx-choice-modal .docx-choice-options button {
+    padding: 16px;
+  }
+}

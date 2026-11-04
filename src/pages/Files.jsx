@@ -1,5 +1,6 @@
 import NovaLoader from "../components/NovaLoader";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 
 import {
@@ -28,6 +29,8 @@ import {
   Ellipsis,
   Info,
   ArrowLeft,
+  FilePenLine,
+  FilePlus,
 } from "lucide-react";
 
 
@@ -60,6 +63,14 @@ import {
   copyFolder,
   moveFolder,
 } from "../services/folders";
+
+function isDocxFile(file) {
+  return (
+    file?.name?.toLowerCase().endsWith(".docx") &&
+    file?.mime_type ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  );
+}
 
 
 function getFileIcon(mimeType) {
@@ -134,6 +145,7 @@ function formatDate(date) {
 
 function Files() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [files, setFiles] = useState([]);
   const [selectedFileIds, setSelectedFileIds] = useState([]);
@@ -171,6 +183,7 @@ function Files() {
   const [previewFile, setPreviewFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [docxChoiceFile, setDocxChoiceFile] = useState(null);
   const [detailsFile, setDetailsFile] = useState(null);
   const [copyingFile, setCopyingFile] = useState(null);
   const [showCopyFoldersModal, setShowCopyFoldersModal] = useState(false);
@@ -271,6 +284,18 @@ useEffect(() => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, []);
+
+  useEffect(() => {
+  if (!docxChoiceFile) return;
+
+  const previousOverflow = document.body.style.overflow;
+
+  document.body.style.overflow = "hidden";
+
+  return () => {
+    document.body.style.overflow = previousOverflow;
+  };
+}, [docxChoiceFile]);
 
   
 useEffect(() => {
@@ -642,7 +667,40 @@ const handleToggleFavorite = async (file) => {
   }
 };
 
+const handleOpenInNovaDocs = async (mode) => {
+  if (!docxChoiceFile || !user) return;
 
+  try {
+    const { data: blob, error } = await supabase.storage
+      .from("user-files")
+      .download(docxChoiceFile.storage_path);
+
+    if (error) throw error;
+
+    const pendingDocxFile = new window.File(
+  [blob],
+  docxChoiceFile.name,
+  {
+    type:
+      docxChoiceFile.mime_type ||
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  }
+);
+    navigate("/documents/new", {
+      state: {
+        pendingDocxFile,
+        sourceFileId:
+          mode === "original" ? docxChoiceFile.id : null,
+        fileName: docxChoiceFile.name,
+      },
+    });
+
+    setDocxChoiceFile(null);
+  } catch (error) {
+    console.error("Unable to open DOCX in NOVA Docs:", error);
+    alert(error.message || "Unable to open this Word document.");
+  }
+};
 
 const handleMoveOpen = (file) => {
   setOpenMenu(null);
@@ -1464,26 +1522,39 @@ const handleDownloadFolder = async (folder) => {
     )}
   </div>
 
-  <div className="files-page-actions">
-    <div className="files-count">
-      <strong>{visibleFiles.length}</strong>
-<span>
-  {visibleFiles.length === 1 ? "file" : "files"}
-</span>
-    </div>
-
-    <button
-      type="button"
-      className="new-folder-button"
-      onClick={() => {
-        setFolderName("");
-        setShowFolderModal(true);
-      }}
-    >
-      <Plus size={17} />
-      <span>New Folder</span>
-    </button>
+  
+<div className="files-page-actions">
+  <div className="files-count">
+    <strong>{visibleFiles.length}</strong>
+    <span>
+      {visibleFiles.length === 1 ? "file" : "files"}
+    </span>
   </div>
+
+  <button
+    type="button"
+    className="new-folder-button"
+    onClick={() => {
+      setFolderName("");
+      setShowFolderModal(true);
+    }}
+  >
+    <Plus size={17} />
+    <span>New Folder</span>
+  </button>
+
+  <button
+    type="button"
+    className="new-folder-button"
+    onClick={() => {
+      window.location.href = "/documents/new";
+    }}
+  >
+    <FileText size={17} />
+    <span>New Document</span>
+  </button>
+</div>
+
 </div>
 
         <div className="files-toolbar">
@@ -2046,6 +2117,19 @@ setOpenFolderMenu(folder.id);
   Share
 </button>
 
+{isDocxFile(file) && (
+  <button
+    type="button"
+    onClick={(event) => {
+      event.stopPropagation();
+      setDocxChoiceFile(file);
+    }}
+  >
+    <FilePenLine size={16} />
+    Open in NOVA Docs
+  </button>
+)}
+
 <button
   type="button"
   onClick={(event) => {
@@ -2179,7 +2263,6 @@ setOpenFolderMenu(folder.id);
                     <Download size={16} />
                     Download
                   </button>
-
                   
 <button
   type="button"
@@ -2198,6 +2281,21 @@ setOpenFolderMenu(folder.id);
   <Share2 size={16} />
   Share
 </button>
+
+{isDocxFile(file) && (
+  <button
+    type="button"
+    onClick={() => {
+      setOpenMenu(null);
+      setMenuPosition(null);
+      activeButtonRef.current = null;
+      setDocxChoiceFile(file);
+    }}
+  >
+    <FilePenLine size={16} />
+    Open in NOVA Docs
+  </button>
+)}
 
 <button
   type="button"
@@ -3231,6 +3329,78 @@ setOpenFolderMenu(folder.id);
           Close
         </button>
       )}
+    </div>
+  </div>
+)}
+
+{docxChoiceFile && (
+  <div
+    className="docx-choice-overlay"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        setDocxChoiceFile(null);
+      }
+    }}
+  >
+    <div
+      className="docx-choice-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="docx-choice-title"
+    >
+      <button
+        type="button"
+        className="docx-choice-close"
+        onClick={() => setDocxChoiceFile(null)}
+      >
+        ×
+      </button>
+
+      <div className="docx-choice-icon">
+        <FilePenLine size={26} />
+      </div>
+
+      <h2 id="docx-choice-title">Open in NOVA Docs</h2>
+
+      <p>
+        How would you like to work with this document?
+      </p>
+
+      <div className="docx-choice-options">
+        <button
+          type="button"
+          onClick={() => handleOpenInNovaDocs("original")}
+        >
+          <FilePenLine size={20} />
+          <span>
+            <strong>Save to original document</strong>
+            <small>
+              Create an editable NOVA version linked to this file.
+            </small>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleOpenInNovaDocs("new")}
+        >
+          <FilePlus size={20} />
+          <span>
+            <strong>Save as a new document</strong>
+            <small>
+              Create a separate document and keep the original untouched.
+            </small>
+          </span>
+        </button>
+      </div>
+
+      <button
+        type="button"
+        className="docx-choice-cancel"
+        onClick={() => setDocxChoiceFile(null)}
+      >
+        Cancel
+      </button>
     </div>
   </div>
 )}

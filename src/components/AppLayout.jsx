@@ -1,15 +1,18 @@
+
 import Sidebar from "./Sidebar";
 import MobileNav from "./MobileNav";
 
 function AppLayout({ children }) {
   return (
-    <>
+    <div className="app-layout">
       <Sidebar />
 
-      {children}
+      <main className="app-main">
+        {children}
+      </main>
 
       <MobileNav />
-    </>
+    </div>
   );
 }
 

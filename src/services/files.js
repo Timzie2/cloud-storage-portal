@@ -906,3 +906,498 @@ return (data ?? []).filter(
 );
 }
 
+export async function updateOriginalDocx(fileId, updatedBlob) {
+  if (!fileId || !(updatedBlob instanceof Blob)) {
+    throw new Error("A valid file ID and updated DOCX are required.");
+  }
+
+  // Confirm the signed-in user.
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) throw authError;
+
+  if (!user) {
+    throw new Error("Please sign in to update this document.");
+  }
+
+  // Retrieve the original file, ensuring it belongs to this user.
+  const { data: file, error: fileError } = await supabase
+    .from("files")
+    .select("id, user_id, name, storage_path, mime_type, size_bytes")
+    .eq("id", fileId)
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single();
+
+  if (fileError) throw fileError;
+
+  if (!file.name.toLowerCase().endsWith(".docx")) {
+    throw new Error("Only DOCX files can be updated this way.");
+  }
+
+  const contentType =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+  // Download the existing original.
+  const { data: originalBlob, error: downloadError } =
+    await supabase.storage
+      .from(BUCKET_NAME)
+      .download(file.storage_path);
+
+  if (downloadError) throw downloadError;
+
+  // Create a unique backup path.
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+  const backupPath =
+    `${user.id}/backups/${file.id}/${timestamp}-${file.name}`;
+
+  // Upload the backup before touching the original.
+  const { error: backupError } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(backupPath, originalBlob, {
+      contentType: file.mime_type || contentType,
+      upsert: false,
+    });
+
+  if (backupError) {
+    throw new Error(
+      `Original document was not changed because its backup failed: ${backupError.message}`
+    );
+  }
+
+    // Register the backup so it appears in NOVA Docs Version History.
+  const { error: versionError } = await supabase
+    .from("document_versions")
+    .insert({
+      file_id: file.id,
+      owner_id: user.id,
+      storage_path: backupPath,
+      file_name: file.name,
+      mime_type: file.mime_type || contentType,
+      size_bytes: originalBlob.size,
+    });
+
+  if (versionError) {
+    // Do not replace the original if its backup cannot be registered.
+    await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([backupPath]);
+
+    throw new Error(
+      `Original document was not changed because its backup could not be registered: ${versionError.message}`
+    );
+  }
+
+  // Replace the original at its existing storage path.
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(file.storage_path, updatedBlob, {
+      contentType,
+      upsert: true,
+    });
+
+  if (uploadError) {
+    throw new Error(
+      `The original was not updated. Its backup is available at ${backupPath}. ${uploadError.message}`
+    );
+  }
+
+  // Update the existing database record.
+  const { error: updateError } = await supabase
+    .from("files")
+    .update({
+      size_bytes: updatedBlob.size,
+      mime_type: contentType,
+    })
+    .eq("id", file.id)
+    .eq("user_id", user.id);
+
+  if (updateError) {
+    // Attempt to restore the original if the database update fails.
+    const { error: restoreError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(file.storage_path, originalBlob, {
+        contentType: file.mime_type || contentType,
+        upsert: true,
+      });
+
+    if (restoreError) {
+      throw new Error(
+        `Database update failed and automatic restoration failed. Your backup is available at ${backupPath}.`
+      );
+    }
+
+    throw updateError;
+  }
+
+  return {
+    success: true,
+    backupPath,
+    fileId: file.id,
+    sizeBytes: updatedBlob.size,
+  };
+}
+
+
+export async function getDocxVersions(fileId) {
+  if (!fileId) {
+    throw new Error("File ID is required.");
+  }
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) throw authError;
+  if (!user) throw new Error("Please sign in.");
+
+  const { data, error } = await supabase
+    .from("document_versions")
+    .select("*")
+    .eq("file_id", fileId)
+    .eq("owner_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return data || [];
+}
+
+export async function downloadDocxVersion(versionId) {
+  if (!versionId) {
+    throw new Error("Version ID is required.");
+  }
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) throw authError;
+  if (!user) throw new Error("Please sign in.");
+
+  const { data: version, error: versionError } = await supabase
+    .from("document_versions")
+    .select("*")
+    .eq("id", versionId)
+    .eq("owner_id", user.id)
+    .single();
+
+  if (versionError) throw versionError;
+
+  const { data: blob, error: downloadError } = await supabase.storage
+    .from(BUCKET_NAME)
+    .download(version.storage_path);
+
+  if (downloadError) throw downloadError;
+
+  return { version, blob };
+}
+
+export async function restoreDocxVersion(fileId, versionId) {
+  if (!fileId || !versionId) {
+    throw new Error("File ID and version ID are required.");
+  }
+
+  const { version, blob } = await downloadDocxVersion(versionId);
+
+  if (version.file_id !== fileId) {
+    throw new Error("This version does not belong to the selected document.");
+  }
+
+  // This backs up the current original before restoring the selected version.
+  return await updateOriginalDocx(fileId, blob);
+}
+
+export async function deleteDocxVersion(versionId) {
+  if (!versionId) {
+    throw new Error("Version ID is required.");
+  }
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) throw authError;
+  if (!user) throw new Error("Please sign in.");
+
+  const { data: version, error: versionError } = await supabase
+    .from("document_versions")
+    .select("*")
+    .eq("id", versionId)
+    .eq("owner_id", user.id)
+    .single();
+
+  if (versionError) throw versionError;
+
+  // Remove the actual backup first.
+  const { error: storageError } = await supabase.storage
+    .from(BUCKET_NAME)
+    .remove([version.storage_path]);
+
+  if (storageError) throw storageError;
+
+  // Only remove the database record after Storage deletion succeeds.
+  const { error: deleteError } = await supabase
+    .from("document_versions")
+    .delete()
+    .eq("id", versionId)
+    .eq("owner_id", user.id);
+
+  if (deleteError) {
+    throw new Error(
+      "The backup file was deleted, but its history record could not be removed. Refresh and check the history."
+    );
+  }
+
+  return { success: true };
+}
+
+export async function clearDocxVersionHistory(fileId) {
+  if (!fileId) {
+    throw new Error("File ID is required.");
+  }
+
+  const versions = await getDocxVersions(fileId);
+
+  // Delete each backup and its record individually.
+  // If Storage deletion fails, its record remains in the history.
+  for (const version of versions) {
+    const { error: storageError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([version.storage_path]);
+
+    if (storageError) {
+      throw new Error(
+        `Could not delete ${version.file_name}. Remaining history has been preserved. ${storageError.message}`
+      );
+    }
+
+    const { error: deleteError } = await supabase
+      .from("document_versions")
+      .delete()
+      .eq("id", version.id)
+      .eq("owner_id", version.owner_id);
+
+    if (deleteError) {
+      throw new Error(
+        "A backup was deleted, but its history record could not be removed. Please refresh and check the history."
+      );
+    }
+  }
+
+  return { success: true, deletedCount: versions.length };
+}
+
+
+const documentDocxSaveQueues = new Map();
+
+export async function saveDocumentDocxOutput(
+  documentId,
+  userId,
+  updatedBlob,
+  documentTitle
+) {
+  if (!documentId || !userId || !(updatedBlob instanceof Blob)) {
+    throw new Error("Document, user, and valid DOCX file are required.");
+  }
+
+  const previousSave =
+    documentDocxSaveQueues.get(documentId) || Promise.resolve();
+
+  const currentSave = previousSave
+    .catch(() => {})
+    .then(async () => {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) throw authError;
+
+      if (!user || user.id !== userId) {
+        throw new Error("You must be signed in to save this document.");
+      }
+
+      // Retrieve the document and its existing output file ID.
+      const { data: document, error: documentError } = await supabase
+        .from("documents")
+        .select("id, owner_id, title, output_file_id")
+        .eq("id", documentId)
+        .eq("owner_id", userId)
+        .single();
+
+      if (documentError) throw documentError;
+
+      const contentType =
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+      // Ensure the output filename has a .docx extension.
+      const safeTitle = (documentTitle || document.title || "Untitled document")
+        .trim()
+        .replace(/[\\/:*?"<>|]/g, "-");
+
+      const fileName = safeTitle.toLowerCase().endsWith(".docx")
+        ? safeTitle
+        : `${safeTitle}.docx`;
+
+      // If an output file already exists, update that file.
+      if (document.output_file_id) {
+        const { data: existingFile, error: existingFileError } =
+          await supabase
+            .from("files")
+            .select("id, user_id, name, storage_path, mime_type")
+            .eq("id", document.output_file_id)
+            .eq("user_id", userId)
+            .is("deleted_at", null)
+            .maybeSingle();
+
+        if (existingFileError) throw existingFileError;
+
+        if (existingFile) {
+          if (!existingFile.name.toLowerCase().endsWith(".docx")) {
+            throw new Error("The linked output file is not a DOCX file.");
+          }
+
+          // Keep a copy of the current output in case the update fails.
+          const { data: previousBlob, error: downloadError } =
+            await supabase.storage
+              .from(BUCKET_NAME)
+              .download(existingFile.storage_path);
+
+          if (downloadError) throw downloadError;
+
+          const { error: uploadError } = await supabase.storage
+            .from(BUCKET_NAME)
+            .upload(existingFile.storage_path, updatedBlob, {
+              contentType,
+              upsert: true,
+            });
+
+          if (uploadError) throw uploadError;
+
+          const { data: updatedFile, error: updateError } = await supabase
+            .from("files")
+            .update({
+              name: fileName,
+              mime_type: contentType,
+              size_bytes: updatedBlob.size,
+            })
+            .eq("id", existingFile.id)
+            .eq("user_id", userId)
+            .select()
+            .single();
+
+          if (updateError) {
+            // Restore the previous DOCX if its metadata update fails.
+            const { error: restoreError } = await supabase.storage
+              .from(BUCKET_NAME)
+              .upload(existingFile.storage_path, previousBlob, {
+                contentType: existingFile.mime_type || contentType,
+                upsert: true,
+              });
+
+            if (restoreError) {
+              throw new Error(
+                "The output file update failed and automatic restoration failed."
+              );
+            }
+
+            throw updateError;
+          }
+
+          return updatedFile;
+        }
+      }
+
+      // No existing output file: check storage quota before creating one.
+      const { getStorageQuota } = await import("./storageQuota");
+      const quota = await getStorageQuota(userId);
+
+      if (
+        quota.isFull ||
+        updatedBlob.size > quota.storageLimit - quota.storageUsed
+      ) {
+        throw new Error("Not enough storage space to save this DOCX file.");
+      }
+
+      const newFileId = crypto.randomUUID();
+      const newStoragePath = `${userId}/${newFileId}-${fileName}`;
+
+      // Upload the new DOCX.
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(newStoragePath, updatedBlob, {
+          contentType,
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      try {
+        // Register the new file in My Files.
+        const { data: newFile, error: insertError } = await supabase
+          .from("files")
+          .insert({
+            user_id: userId,
+            name: fileName,
+            storage_path: newStoragePath,
+            mime_type: contentType,
+            size_bytes: updatedBlob.size,
+            folder_id: null,
+            is_favorite: false,
+          })
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+
+        // Link this output file to the NOVA document.
+        const { data: linkedDocument, error: linkError } = await supabase
+          .from("documents")
+          .update({
+            output_file_id: newFile.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", documentId)
+          .eq("owner_id", userId)
+          .select("id")
+          .maybeSingle();
+
+        if (linkError) throw linkError;
+
+        if (!linkedDocument) {
+          throw new Error("Could not link the DOCX file to this document.");
+        }
+
+        return newFile;
+      } catch (error) {
+        // Clean up if registering or linking the new file fails.
+        const { error: deleteError } = await supabase.storage
+          .from(BUCKET_NAME)
+          .remove([newStoragePath]);
+
+        if (deleteError) {
+          console.error("Could not clean up the new DOCX upload:", deleteError);
+        }
+
+        throw error;
+      }
+    });
+
+  documentDocxSaveQueues.set(documentId, currentSave);
+
+  try {
+    return await currentSave;
+  } finally {
+    if (documentDocxSaveQueues.get(documentId) === currentSave) {
+      documentDocxSaveQueues.delete(documentId);
+    }
+  }
+}
