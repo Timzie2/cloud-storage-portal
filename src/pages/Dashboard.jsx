@@ -43,6 +43,7 @@ function Dashboard() {
   const profileMenuRef = useRef(null);
 
   const overlayStackRef = useRef([]);
+  const pendingOverlayActionRef = useRef(null);
 
 const openOverlay = (key, setter) => {
   const id = `${key}-${crypto.randomUUID()}`;
@@ -62,13 +63,17 @@ const openOverlay = (key, setter) => {
   );
 };
 
-const closeOverlay = (key) => {
+const closeOverlay = (key, onClosed) => {
   const stack = overlayStackRef.current;
   const topOverlay = stack[stack.length - 1];
 
   if (topOverlay?.key === key) {
+    pendingOverlayActionRef.current = onClosed || null;
     window.history.back();
-  }
+} else {
+  pendingOverlayActionRef.current = null;
+  onClosed?.();
+}
 };
 
 useEffect(() => {
@@ -82,8 +87,13 @@ useEffect(() => {
       return;
     }
 
-    stack.pop();
-    topOverlay.setter(false);
+stack.pop();
+topOverlay.setter(false);
+
+const pendingAction = pendingOverlayActionRef.current;
+pendingOverlayActionRef.current = null;
+
+pendingAction?.();
   };
 
   window.addEventListener("popstate", handlePopState);
@@ -355,9 +365,10 @@ onClick={() => {
         type="button"
         className="profile-menu-item"
         onClick={() => {
-          closeOverlay("dashboard-profile");
-          navigate("/profile");
-        }}
+  closeOverlay("dashboard-profile", () => {
+    navigate("/profile");
+  });
+}}
       >
         <User size={17} />
         <span>Profile</span>
@@ -366,10 +377,11 @@ onClick={() => {
             <button
         type="button"
         className="profile-menu-item"
-        onClick={() => {
-          closeOverlay("dashboard-profile");
-          navigate("/settings");
-        }}
+       onClick={() => {
+  closeOverlay("dashboard-profile", () => {
+    navigate("/settings");
+  });
+}}
       >
         <Settings size={17} />
         <span>Settings</span>
@@ -381,9 +393,10 @@ onClick={() => {
         type="button"
         className="profile-menu-item office-menu-item"
         onClick={() => {
-          closeOverlay("dashboard-profile");
-          navigate("/office");
-        }}
+  closeOverlay("dashboard-profile", () => {
+    navigate("/office");
+  });
+}}
       >
         <AppWindow size={17} />
         <span>NOVA Office</span>
@@ -394,10 +407,11 @@ onClick={() => {
       <button
         type="button"
         className="profile-menu-item danger"
-        onClick={async () => {
-          closeOverlay("dashboard-profile");
-          await logout();
-        }}
+        onClick={() => {
+  closeOverlay("dashboard-profile", async () => {
+    await logout();
+  });
+}}
       >
         <LogOut size={17} />
         <span>Log out</span>
