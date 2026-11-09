@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Star, File, Search } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import NovaLoader from "../components/NovaLoader";
@@ -33,6 +33,58 @@ function Favorites() {
   const [previewFile, setPreviewFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+    const overlayStackRef = useRef([]);
+
+const openOverlay = (key, setter, value, closeValue = null) => {
+  const id = `${key}-${crypto.randomUUID()}`;
+
+  overlayStackRef.current.push({
+    id,
+    key,
+    setter,
+    closeValue,
+  });
+
+  window.history.pushState(
+    {
+      ...window.history.state,
+      novaOverlayId: id,
+    },
+    ""
+  );
+};
+
+const closeOverlay = (key) => {
+  const stack = overlayStackRef.current;
+  const topOverlay = stack[stack.length - 1];
+
+  if (topOverlay?.key === key) {
+    window.history.back();
+  }
+};
+
+useEffect(() => {
+  const handlePopState = (event) => {
+    const stack = overlayStackRef.current;
+    const topOverlay = stack[stack.length - 1];
+
+    if (!topOverlay) return;
+
+    if (event.state?.novaOverlayId === topOverlay.id) {
+      return;
+    }
+
+    stack.pop();
+    topOverlay.setter(topOverlay.closeValue);
+  };
+
+  window.addEventListener("popstate", handlePopState);
+
+  return () => {
+    window.removeEventListener("popstate", handlePopState);
+  };
+}, []);
 
   const loadFavorites = useCallback(async () => {
     if (!user?.id) {
@@ -68,9 +120,17 @@ function Favorites() {
     }
   };
 
-  const handlePreview = async (file) => {
+const handlePreview = async (file) => {
   try {
+    openOverlay(
+      "favorite-preview",
+      setPreviewFile,
+      file,
+      null
+    );
+
     setPreviewFile(file);
+
     setPreviewUrl(null);
     setPreviewLoading(true);
 
@@ -78,7 +138,7 @@ function Favorites() {
     setPreviewUrl(url);
   } catch (error) {
     console.error("Preview error:", error);
-    setPreviewFile(null);
+    closeOverlay("favorite-preview");
     setPreviewUrl(null);
     alert("Could not open this file.");
   } finally {
@@ -87,7 +147,7 @@ function Favorites() {
 };
 
 const closePreview = () => {
-  setPreviewFile(null);
+  closeOverlay("favorite-preview");
   setPreviewUrl(null);
   setPreviewLoading(false);
 };

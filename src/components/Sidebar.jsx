@@ -7,9 +7,11 @@ import {
   Trash2,
   Settings,
   Star,
+  BriefcaseBusiness,
 } from "lucide-react";
 
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
+import { useNavigationGuard } from "../context/NavigationGuardContext";
 
 import Logo from "./Logo";
 import { useAuth } from "../context/AuthContext";
@@ -29,14 +31,37 @@ function formatStorage(bytes) {
 function Sidebar() {
   const { user } = useAuth();
 
+  const { requestNavigation } = useNavigationGuard();
+const location = useLocation();
+
+const handleNavigation = (event, destination) => {
+  // Preserve normal browser behavior for modified clicks.
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  ) {
+    return;
+  }
+
+  // Don't trigger a warning when clicking the current route.
+  if (location.pathname === destination) return;
+
+  event.preventDefault();
+  requestNavigation(destination);
+};
+
   const [storageQuota, setStorageQuota] = useState(null);
 
   const navItems = [
   { to: "/", label: "Home", icon: Home },
+  { to: "/office", label: "Office", icon: BriefcaseBusiness },
   { to: "/files", label: "My Files", icon: Folder },
   { to: "/favorites", label: "Favorites", icon: Star },
   { to: "/shared", label: "Shared", icon: Share2 },
-  { to: "/recent", label: "Recent", icon: Clock3 },
   { to: "/trash", label: "Trash", icon: Trash2 },
 ];
 
@@ -120,12 +145,13 @@ function Sidebar() {
 
           return (
             <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `sidebar-link ${isActive ? "active" : ""}`
-              }
-            >
+  key={item.to}
+  to={item.to}
+  onClick={(event) => handleNavigation(event, item.to)}
+  className={({ isActive }) =>
+    `sidebar-link ${isActive ? "active" : ""}`
+  }
+>
               <Icon size={18} />
               <span>{item.label}</span>
             </NavLink>
@@ -166,11 +192,12 @@ function Sidebar() {
         )}
 
         <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            `sidebar-link ${isActive ? "active" : ""}`
-          }
-        >
+  to="/settings"
+  onClick={(event) => handleNavigation(event, "/settings")}
+  className={({ isActive }) =>
+    `sidebar-link ${isActive ? "active" : ""}`
+  }
+>
           <Settings size={18} />
           <span>Settings</span>
         </NavLink>

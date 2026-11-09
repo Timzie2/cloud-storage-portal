@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
 import {
   File,
@@ -247,6 +247,58 @@ useEffect(() => {
   const [previewFile, setPreviewFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  const overlayStackRef = useRef([]);
+
+const openOverlay = (key, setter, closeValue = null) => {
+  const id = `${key}-${crypto.randomUUID()}`;
+
+  overlayStackRef.current.push({
+    id,
+    key,
+    setter,
+    closeValue,
+  });
+
+  window.history.pushState(
+    {
+      ...window.history.state,
+      novaOverlayId: id,
+    },
+    ""
+  );
+};
+
+const closeOverlay = (key) => {
+  const stack = overlayStackRef.current;
+  const topOverlay = stack[stack.length - 1];
+
+  if (topOverlay?.key === key) {
+    window.history.back();
+  }
+};
+
+useEffect(() => {
+  const handlePopState = (event) => {
+    const stack = overlayStackRef.current;
+    const topOverlay = stack[stack.length - 1];
+
+    if (!topOverlay) return;
+
+    if (event.state?.novaOverlayId === topOverlay.id) {
+      return;
+    }
+
+    stack.pop();
+    topOverlay.setter(topOverlay.closeValue);
+  };
+
+  window.addEventListener("popstate", handlePopState);
+
+  return () => {
+    window.removeEventListener("popstate", handlePopState);
+  };
+}, []);
 
   useEffect(() => {
     if (!user) return;
@@ -498,9 +550,10 @@ async function handlePreview(file, share = null) {
       return;
     }
 
-    setPreviewFile(file);
-    setPreviewUrl(null);
-    setPreviewLoading(true);
+openOverlay("shared-preview", setPreviewFile);
+setPreviewFile(file);
+setPreviewUrl(null);
+setPreviewLoading(true);
 
     const url = await getPreviewUrl(file.storage_path);
 
@@ -508,7 +561,8 @@ async function handlePreview(file, share = null) {
   } catch (err) {
     console.error("Preview error:", err);
     setError("Could not preview this file.");
-    setPreviewFile(null);
+    closeOverlay("shared-preview");
+    setPreviewUrl(null);
   } finally {
     setPreviewLoading(false);
   }
@@ -560,11 +614,11 @@ async function handleDownload(file, share = null) {
 }
 
 
-  function closePreview() {
-    setPreviewFile(null);
-    setPreviewUrl(null);
-    setPreviewLoading(false);
-  }
+function closePreview() {
+  closeOverlay("shared-preview");
+  setPreviewUrl(null);
+  setPreviewLoading(false);
+}
 
   async function handleRevoke() {
     if (!revokeTarget) return;
@@ -576,7 +630,7 @@ async function handleDownload(file, share = null) {
         current.filter((share) => share.id !== revokeTarget.id)
       );
 
-      setRevokeTarget(null);
+      closeOverlay("shared-revoke-file");
     } catch (err) {
       console.error("Error revoking share:", err);
       setError("Could not revoke the share.");
@@ -595,6 +649,7 @@ async function openCopyModal(item, type) {
     setLoadingDestinations(true);
     setError("");
     setCopyMessage("");
+    openOverlay("shared-copy", setCopyTarget);
     setCopyTarget({ item, type });
     setSelectedDestination("");
 
@@ -603,7 +658,7 @@ async function openCopyModal(item, type) {
   } catch (err) {
     console.error("Could not load destination folders:", err);
     setError("Could not load your destination folders.");
-    setCopyTarget(null);
+    closeOverlay("shared-copy");
   } finally {
     setLoadingDestinations(false);
   }
@@ -660,7 +715,7 @@ async function confirmCopy() {
       );
     }
 
-    setCopyTarget(null);
+    closeOverlay("shared-copy");
     setSelectedDestination("");
 
 } catch (err) {
@@ -693,7 +748,7 @@ async function handleFolderRevoke() {
       current.filter((share) => share.id !== folderRevokeTarget.id)
     );
 
-    setFolderRevokeTarget(null);
+    closeOverlay("shared-revoke-folder");
   } catch (err) {
     console.error("Error revoking folder share:", err);
     setError("Could not revoke folder access.");
@@ -878,9 +933,10 @@ async function handleFolderRevoke() {
                         type="button"
                         className="shared-revoke-btn"
                         onClick={(event) => {
-                          event.stopPropagation();
-                          setRevokeTarget(share);
-                        }}
+  event.stopPropagation();
+  openOverlay("shared-revoke-file", setRevokeTarget);
+  setRevokeTarget(share);
+}}
                       >
                         Revoke
                       </button>
@@ -1096,9 +1152,10 @@ async function handleFolderRevoke() {
               type="button"
               className="shared-revoke-btn"
               onClick={(event) => {
-                event.stopPropagation();
-                setFolderRevokeTarget(share);
-              }}
+  event.stopPropagation();
+  openOverlay("shared-revoke-folder", setFolderRevokeTarget);
+  setFolderRevokeTarget(share);
+}}
             >
               Revoke
             </button>
@@ -1927,7 +1984,7 @@ setFileError("");
       {revokeTarget && (
         <div
           className="shared-modal-overlay"
-          onClick={() => setRevokeTarget(null)}
+          onClick={() => closeOverlay("shared-revoke-file")}
         >
           <div
             className="shared-modal"
@@ -1935,7 +1992,7 @@ setFileError("");
           >
             <button
               className="shared-modal-close"
-              onClick={() => setRevokeTarget(null)}
+              onClick={() => closeOverlay("shared-revoke-file")}
               aria-label="Close"
             >
               <X size={18} />
@@ -1960,7 +2017,7 @@ setFileError("");
             <div className="shared-modal-actions">
               <button
                 className="shared-cancel-btn"
-                onClick={() => setRevokeTarget(null)}
+                onClick={() => closeOverlay("shared-revoke-file")}
               >
                 Cancel
               </button>
@@ -1980,7 +2037,7 @@ setFileError("");
 {folderRevokeTarget && (
   <div
     className="shared-modal-overlay"
-    onClick={() => setFolderRevokeTarget(null)}
+    onClick={() => closeOverlay("shared-revoke-folder")}
   >
     <div
       className="shared-modal"
@@ -1988,7 +2045,7 @@ setFileError("");
     >
       <button
         className="shared-modal-close"
-        onClick={() => setFolderRevokeTarget(null)}
+        onClick={() => closeOverlay("shared-revoke-folder")}
         aria-label="Close"
       >
         <X size={18} />
@@ -2011,7 +2068,7 @@ setFileError("");
       <div className="shared-modal-actions">
         <button
           className="shared-cancel-btn"
-          onClick={() => setFolderRevokeTarget(null)}
+          onClick={() => closeOverlay("shared-revoke-folder")}
         >
           Cancel
         </button>
@@ -2035,7 +2092,7 @@ setFileError("");
   <div
     className="folder-copy-overlay"
     onClick={() => {
-      if (!copyingItem) setCopyTarget(null);
+      if (!copyingItem) closeOverlay("shared-copy");
     }}
   >
     <div
@@ -2058,7 +2115,7 @@ setFileError("");
         <button
           type="button"
           className="folder-copy-close"
-          onClick={() => setCopyTarget(null)}
+          onClick={() => closeOverlay("shared-copy")}
           disabled={Boolean(copyingItem)}
           aria-label="Close dialog"
         >
@@ -2121,7 +2178,7 @@ setFileError("");
         <button
           type="button"
           className="bulk-clear-button"
-          onClick={() => setCopyTarget(null)}
+          onClick={() => closeOverlay("shared-copy")}
           disabled={Boolean(copyingItem)}
         >
           Cancel

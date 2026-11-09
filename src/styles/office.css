@@ -1,0 +1,456 @@
+
+/* =========================================================
+   NOVA OFFICE
+========================================================= */
+
+.office-page {
+  min-height: 100vh;
+  width: 100%;
+  color: var(--text);
+  overflow-x: clip;
+}
+
+.office-content {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 42px 32px 70px;
+  box-sizing: border-box;
+}
+
+.office-header {
+  margin-bottom: 30px;
+}
+
+.office-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+
+.office-header h1 {
+  margin: 12px 0 8px;
+  font-size: clamp(34px, 4vw, 46px);
+  letter-spacing: -0.045em;
+}
+
+.office-subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+/* Welcome banner */
+
+.office-welcome {
+  position: relative;
+  min-height: 245px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 34px 40px;
+  margin-bottom: 38px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      circle at 85% 30%,
+      rgba(139, 92, 246, 0.22),
+      transparent 38%
+    ),
+    linear-gradient(
+      120deg,
+      var(--surface),
+      var(--surface-elevated)
+    );
+  box-sizing: border-box;
+}
+
+.office-welcome-content {
+  position: relative;
+  z-index: 2;
+  max-width: 560px;
+}
+
+.office-welcome-content > span {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.office-welcome-content h2 {
+  margin: 12px 0;
+  font-size: clamp(27px, 3vw, 36px);
+  letter-spacing: -0.04em;
+}
+
+.office-welcome-content p {
+  max-width: 440px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.office-welcome-content button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(120deg, var(--primary), var(--accent));
+  color: white;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.office-welcome-content button:hover {
+  filter: brightness(1.08);
+}
+
+.office-welcome-decoration {
+  position: relative;
+  width: 260px;
+  height: 180px;
+  flex-shrink: 0;
+}
+
+.office-decoration-card {
+  position: absolute;
+  width: 82px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 17px;
+  color: white;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+}
+
+.office-decoration-one {
+  top: 35px;
+  left: 10px;
+  background: #315fa8;
+  transform: rotate(-13deg);
+}
+
+.office-decoration-two {
+  top: 5px;
+  left: 90px;
+  background: #16835b;
+  transform: rotate(5deg);
+}
+
+.office-decoration-three {
+  top: 45px;
+  left: 165px;
+  background: #a85b30;
+  transform: rotate(14deg);
+}
+
+/* Section headings */
+
+.office-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 17px;
+}
+
+.office-section-heading h2 {
+  margin: 0;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.office-section-heading p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.office-section-heading > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Application cards */
+
+.office-app-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 17px;
+}
+
+.office-app-card {
+  min-width: 0;
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 21px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  transition: 0.2s ease;
+}
+
+.office-app-card:not(:disabled) {
+  cursor: pointer;
+}
+
+.office-app-card:not(:disabled):hover {
+  transform: translateY(-3px);
+  border-color: var(--primary);
+  background: var(--surface-hover);
+}
+
+.office-app-card:disabled {
+  opacity: 0.82;
+  cursor: not-allowed;
+}
+
+.office-app-card-top,
+.office-app-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.office-app-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+}
+
+.office-docs .office-app-icon {
+  background: rgba(49, 95, 168, 0.17);
+  color: #6195ed;
+}
+
+.office-sheets .office-app-icon {
+  background: rgba(22, 131, 91, 0.17);
+  color: #32bd83;
+}
+
+.office-slides .office-app-icon {
+  background: rgba(190, 104, 47, 0.17);
+  color: #e59a5b;
+}
+
+.office-pdf .office-app-icon {
+  background: rgba(196, 56, 77, 0.17);
+  color: #ed7185;
+}
+
+.office-app-status {
+  padding: 6px 9px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.office-app-status.available {
+  background: rgba(34, 197, 94, 0.12);
+  color: #32bd83;
+}
+
+.office-app-status.coming-soon {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+}
+
+.office-app-card-content {
+  margin: 20px 0;
+}
+
+.office-app-card-content h3 {
+  margin: 0 0 7px;
+  font-size: 17px;
+}
+
+.office-app-card-content p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.office-app-card-footer {
+  margin-top: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.office-app-card-footer svg {
+  color: var(--primary);
+}
+
+/* Recent documents */
+
+.office-recent-section {
+  margin-top: 42px;
+}
+
+.office-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 210px;
+  padding: 30px;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  text-align: center;
+}
+
+.office-empty-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--surface-hover);
+  color: var(--primary);
+}
+
+.office-empty-state h3 {
+  margin: 15px 0 5px;
+  font-size: 15px;
+}
+
+.office-empty-state p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.office-empty-state button {
+  margin-top: 15px;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+/* Responsive */
+
+@media (max-width: 768px) {
+  .office-content {
+    padding: 30px 20px 100px;
+  }
+
+  .office-welcome {
+    min-height: 230px;
+    padding: 25px;
+  }
+
+  .office-welcome-decoration {
+    display: none;
+  }
+
+  .office-app-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .office-content {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+
+  .office-welcome {
+    padding: 22px;
+  }
+
+  .office-section-heading h2 {
+    font-size: 17px;
+  }
+}
+
+
+.office-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.office-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.office-recent-item:hover {
+  background: var(--hover-bg);
+  border-color: var(--border-hover);
+}
+
+.office-recent-item-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.office-recent-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.office-recent-item-info h3 {
+  margin: 0 0 5px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.office-recent-item-info p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.office-recent-item > svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}

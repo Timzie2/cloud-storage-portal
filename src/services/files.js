@@ -12,7 +12,7 @@ export async function getUserFiles(userId) {
   .select("*")
   .eq("user_id", userId)
   .is("deleted_at", null)
-  .order("created_at", { ascending: false });
+.order("updated_at", { ascending: false });
 
   if (error) {
     throw error;
@@ -21,6 +21,116 @@ export async function getUserFiles(userId) {
   return data ?? [];
 }
 
+// Get recent files for the NOVA Office dashboard.
+export async function getRecentOfficeFiles(userId, limit = 20) {
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
+
+  const { data, error } = await supabase
+    .from("files")
+    .select(
+      "id, name, storage_path, mime_type, size_bytes, created_at, updated_at, folder_id, is_favorite"
+    )
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+
+  return data ?? [];
+}
+
+export async function saveNewDocxToMyFiles(
+  userId,
+  updatedBlob,
+  documentTitle
+) {
+  if (!userId || !(updatedBlob instanceof Blob)) {
+    throw new Error("User and a valid DOCX file are required.");
+  }
+
+  // Confirm the signed-in user.
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) throw authError;
+
+  if (!user || user.id !== userId) {
+    throw new Error("You must be signed in to save this document.");
+  }
+
+  const contentType =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+  // Prepare a safe filename.
+  const safeTitle = (documentTitle || "Untitled document")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "-");
+
+  const fileName = safeTitle.toLowerCase().endsWith(".docx")
+    ? safeTitle
+    : `${safeTitle}.docx`;
+
+  // Check available storage quota.
+  const { getStorageQuota } = await import("./storageQuota");
+  const quota = await getStorageQuota(userId);
+
+  if (
+    quota.isFull ||
+    updatedBlob.size > quota.storageLimit - quota.storageUsed
+  ) {
+    throw new Error("Not enough storage space to save this DOCX file.");
+  }
+
+  const newFileId = crypto.randomUUID();
+  const newStoragePath = `${userId}/${newFileId}-${fileName}`;
+
+  // Upload the DOCX to NOVA Storage.
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(newStoragePath, updatedBlob, {
+      contentType,
+      upsert: false,
+    });
+
+  if (uploadError) throw uploadError;
+
+  try {
+    // Register it as a normal file in My Files.
+    const { data: newFile, error: insertError } = await supabase
+      .from("files")
+      .insert({
+        user_id: userId,
+        name: fileName,
+        storage_path: newStoragePath,
+        mime_type: contentType,
+        size_bytes: updatedBlob.size,
+        folder_id: null,
+        is_favorite: false,
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+
+    return newFile;
+  } catch (error) {
+    // Clean up Storage if the database insert fails.
+    const { error: cleanupError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([newStoragePath]);
+
+    if (cleanupError) {
+      console.error("Could not clean up failed DOCX upload:", cleanupError);
+    }
+
+    throw error;
+  }
+}
 
 export async function downloadFile(
   storagePath,
@@ -906,7 +1016,11 @@ return (data ?? []).filter(
 );
 }
 
-export async function updateOriginalDocx(fileId, updatedBlob) {
+export async function updateOriginalDocx(
+  fileId,
+  updatedBlob,
+  documentTitle = null
+) {
   if (!fileId || !(updatedBlob instanceof Blob)) {
     throw new Error("A valid file ID and updated DOCX are required.");
   }
@@ -1007,14 +1121,24 @@ export async function updateOriginalDocx(fileId, updatedBlob) {
   }
 
   // Update the existing database record.
-  const { error: updateError } = await supabase
-    .from("files")
-    .update({
-      size_bytes: updatedBlob.size,
-      mime_type: contentType,
-    })
-    .eq("id", file.id)
-    .eq("user_id", user.id);
+const safeTitle = (documentTitle || file.name)
+  .trim()
+  .replace(/[\\/:*?"<>|]/g, "-");
+
+const fileName = safeTitle.toLowerCase().endsWith(".docx")
+  ? safeTitle
+  : `${safeTitle}.docx`;
+
+const { error: updateError } = await supabase
+  .from("files")
+  .update({
+    name: fileName,
+    size_bytes: updatedBlob.size,
+    mime_type: contentType,
+    updated_at: new Date().toISOString(),
+  })
+  .eq("id", file.id)
+  .eq("user_id", user.id);
 
   if (updateError) {
     // Attempt to restore the original if the database update fails.

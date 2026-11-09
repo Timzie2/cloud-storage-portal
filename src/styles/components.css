@@ -4762,3 +4762,38 @@ html:not(.dark) .share-modal .share-modal-folder-name {
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   NOVA OFFICE — SIDEBAR LAYOUT
+========================================================= */
+
+.app-layout > .app-main:has(.office-page) {
+  margin-left: 240px;
+  width: calc(100% - 240px);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.app-layout .office-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+.app-layout .office-content {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .app-layout > .app-main:has(.office-page) {
+    margin-left: 0;
+    width: 100%;
+  }
+}

@@ -110,6 +110,57 @@ const [previewFile, setPreviewFile] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [detailsFile, setDetailsFile] = useState(null);
 
+  const overlayStackRef = useRef([]);
+
+const openOverlay = (key, setter) => {
+  const id = `${key}-${crypto.randomUUID()}`;
+
+  overlayStackRef.current.push({
+    id,
+    key,
+    setter,
+  });
+
+  window.history.pushState(
+    {
+      ...window.history.state,
+      novaOverlayId: id,
+    },
+    ""
+  );
+};
+
+const closeOverlay = (key) => {
+  const stack = overlayStackRef.current;
+  const topOverlay = stack[stack.length - 1];
+
+  if (topOverlay?.key === key) {
+    window.history.back();
+  }
+};
+
+useEffect(() => {
+  const handlePopState = (event) => {
+    const stack = overlayStackRef.current;
+    const topOverlay = stack[stack.length - 1];
+
+    if (!topOverlay) return;
+
+    if (event.state?.novaOverlayId === topOverlay.id) {
+      return;
+    }
+
+    stack.pop();
+    topOverlay.setter(null);
+  };
+
+  window.addEventListener("popstate", handlePopState);
+
+  return () => {
+    window.removeEventListener("popstate", handlePopState);
+  };
+}, []);
+
   const menuRef = useRef(null);
   const activeButtonRef = useRef(null);
 
@@ -208,41 +259,29 @@ const handleMenuToggle = (fileId, event) => {
 };
 
 
-  const handlePreview = async (file) => {
-    try {
-      setOpenMenu(null);
-      setMenuPosition(null);
+const handlePreview = async (file) => {
+  try {
+    setOpenMenu(null);
+    setMenuPosition(null);
 
-      setPreviewFile(file);
-      setPreviewUrl(null);
-      setPreviewLoading(true);
+    openOverlay("recent-preview", setPreviewFile);
+    setPreviewFile(file);
+    setPreviewUrl(null);
+    setPreviewLoading(true);
 
-      const url = await getPreviewUrl(
-        file.storage_path
-      );
+    const url = await getPreviewUrl(file.storage_path);
 
-      setPreviewUrl(url);
-    } catch (error) {
-      console.error(
-        "Preview error:",
-        error
-      );
+    setPreviewUrl(url);
+  } catch (error) {
+    console.error("Preview error:", error);
 
-      setPreviewFile(null);
-      setPreviewUrl(null);
+    closeOverlay("recent-preview");
+    setPreviewUrl(null);
 
-      alert("Could not open this file.");
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
-  const handleShare = (file) => {
-  setOpenMenu(null);
-  setMenuPosition(null);
-  activeButtonRef.current = null;
-
-  setShareFileData(file);
+    alert("Could not open this file.");
+  } finally {
+    setPreviewLoading(false);
+  }
 };
 
 
@@ -265,8 +304,17 @@ const handleToggleFavorite = async (file) => {
 };
 
 
+const handleShare = (file) => {
+  setOpenMenu(null);
+  setMenuPosition(null);
+  activeButtonRef.current = null;
+
+  openOverlay("recent-share", setShareFileData);
+  setShareFileData(file);
+};
+
 const closeShare = () => {
-  setShareFileData(null);
+  closeOverlay("recent-share");
 };
 
   const handleDownload = async (file) => {
@@ -356,6 +404,7 @@ const handleMoveOpen = async (file) => {
   setMenuPosition(null);
   activeButtonRef.current = null;
 
+  openOverlay("recent-move", setMoveFileData);
   setMoveFileData(file);
   setFolders([]);
   setLoadingFolders(true);
@@ -371,7 +420,7 @@ const handleMoveOpen = async (file) => {
   } catch (error) {
     console.error("Load folders error:", error);
     alert("Could not load your folders.");
-    setMoveFileData(null);
+    closeOverlay("recent-move");
   } finally {
     setLoadingFolders(false);
   }
@@ -383,6 +432,7 @@ const handleCopyOpen = async (file) => {
   setMenuPosition(null);
   activeButtonRef.current = null;
 
+  openOverlay("recent-copy", setCopyFileData);
   setCopyFileData(file);
   setFolders([]);
   setLoadingFolders(true);
@@ -397,7 +447,7 @@ const handleCopyOpen = async (file) => {
   } catch (error) {
     console.error("Load folders for copy error:", error);
     alert("Could not load your folders.");
-    setCopyFileData(null);
+    closeOverlay("recent-copy");
   } finally {
     setLoadingFolders(false);
   }
@@ -419,7 +469,7 @@ const handleMove = async (folderId) => {
       onFileUpdated?.(updatedFile);
     }
 
-    setMoveFileData(null);
+    closeOverlay("recent-move");
   } catch (error) {
     console.error("Move file error:", error);
     alert("Could not move the file. Please try again.");
@@ -444,7 +494,7 @@ const handleCopyToFolder = async (folderId) => {
     // Notify the dashboard that a file was copied.
     onFileUpdated?.(copiedFile);
 
-    setCopyFileData(null);
+    closeOverlay("recent-copy");
   } catch (error) {
     console.error("Copy file error:", error);
     alert(
@@ -692,12 +742,14 @@ const handleCopyToFolder = async (folderId) => {
 
 <button
   type="button"
-  onClick={() => {
-    setOpenMenu(null);
-    setMenuPosition(null);
-    activeButtonRef.current = null;
-    setDetailsFile(file);
-  }}
+onClick={() => {
+  setOpenMenu(null);
+  setMenuPosition(null);
+  activeButtonRef.current = null;
+
+  openOverlay("recent-details", setDetailsFile);
+  setDetailsFile(file);
+}}
 >
   <File size={16} />
   Details
@@ -735,9 +787,9 @@ const handleCopyToFolder = async (folderId) => {
               file={previewFile}
               signedUrl={previewUrl}
               onClose={() => {
-                setPreviewFile(null);
-                setPreviewUrl(null);
-              }}
+  closeOverlay("recent-preview");
+  setPreviewUrl(null);
+}}
               onDownload={handleDownload}
             />
           )}
@@ -857,7 +909,7 @@ const handleCopyToFolder = async (folderId) => {
         event.target === event.currentTarget &&
         !movingFile
       ) {
-        setMoveFileData(null);
+        closeOverlay("recent-move");
       }
     }}
   >
@@ -885,7 +937,7 @@ const handleCopyToFolder = async (folderId) => {
         <button
           type="button"
           className="folder-modal-close"
-          onClick={() => setMoveFileData(null)}
+          onClick={() => closeOverlay("recent-move")}
           disabled={movingFile}
           aria-label="Close"
         >
@@ -972,7 +1024,7 @@ const handleCopyToFolder = async (folderId) => {
         event.target === event.currentTarget &&
         !copyingToFolder
       ) {
-        setCopyFileData(null);
+        closeOverlay("recent-copy");
       }
     }}
   >
@@ -1001,7 +1053,7 @@ const handleCopyToFolder = async (folderId) => {
         <button
           type="button"
           className="folder-modal-close"
-          onClick={() => setCopyFileData(null)}
+          onClick={() => closeOverlay("recent-copy")}
           disabled={copyingToFolder}
           aria-label="Close"
         >
@@ -1069,16 +1121,15 @@ const handleCopyToFolder = async (folderId) => {
     file={shareFileData}
     onClose={closeShare}
     onShared={() => {
-      setShareFileData(null);
+      // Refresh sharing-related data if needed.
     }}
   />
 )}
 
-
 {detailsFile && (
   <FileDetailsModal
     file={detailsFile}
-    onClose={() => setDetailsFile(null)}
+    onClose={() => closeOverlay("recent-details")}
   />
 )}
 

@@ -1,6 +1,6 @@
 import NovaLoader from "../components/NovaLoader";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 
 import {
@@ -161,7 +161,21 @@ function Files() {
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
-  const [currentFolderId, setCurrentFolderId] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+const currentFolderId = searchParams.get("folder") || null;
+
+const setCurrentFolderId = (folderId) => {
+  setSearchParams((params) => {
+    if (folderId) {
+      params.set("folder", folderId);
+    } else {
+      params.delete("folder");
+    }
+
+    return params;
+  });
+};
   const [openFolderMenu, setOpenFolderMenu] = useState(null);
   const [folderMenuPosition, setFolderMenuPosition] = useState(null);
   const [folderDownloadProgress, setFolderDownloadProgress] = useState(null);
@@ -214,6 +228,65 @@ function Files() {
 
   const menuRef = useRef(null);
   const activeButtonRef = useRef(null);
+  const overlayStackRef = useRef([]);
+  const overlayHistoryActiveRef = useRef(false);
+
+
+  const openOverlay = (key, setter, value, closeValue = null) => {
+  const id = `${key}-${crypto.randomUUID()}`;
+
+  overlayStackRef.current.push({
+    id,
+    key,
+    setter,
+    closeValue,
+  });
+
+  window.history.pushState(
+    {
+      ...window.history.state,
+      novaOverlayId: id,
+    },
+    ""
+  );
+
+  overlayHistoryActiveRef.current = true;
+  setter(value);
+};
+
+const closeOverlay = (key) => {
+  const stack = overlayStackRef.current;
+  const topOverlay = stack[stack.length - 1];
+
+  if (topOverlay?.key === key) {
+    window.history.back();
+  }
+};
+
+useEffect(() => {
+  const handlePopState = (event) => {
+    const stack = overlayStackRef.current;
+    const topOverlay = stack[stack.length - 1];
+
+    if (!topOverlay) return;
+
+    // Forward navigation into this overlay should not close it.
+    if (event.state?.novaOverlayId === topOverlay.id) {
+      return;
+    }
+
+    stack.pop();
+    topOverlay.setter(topOverlay.closeValue);
+
+    overlayHistoryActiveRef.current = stack.length > 0;
+  };
+
+  window.addEventListener("popstate", handlePopState);
+
+  return () => {
+    window.removeEventListener("popstate", handlePopState);
+  };
+}, []);
 
 
   const loadFilesAndFolders = async () => {
@@ -612,7 +685,7 @@ const clearFolderSelection = () => {
       setOpenMenu(null);
       setMenuPosition(null);
 
-      setPreviewFile(file);
+      openOverlay("preview", setPreviewFile, file);
       setPreviewUrl(null);
       setPreviewLoading(true);
 
@@ -636,12 +709,12 @@ const clearFolderSelection = () => {
     }
   };
 
-  const handleShare = (file) => {
+const handleShare = (file) => {
   setOpenMenu(null);
   setMenuPosition(null);
   activeButtonRef.current = null;
 
-  setShareFileData(file);
+  openOverlay("share-file", setShareFileData, file);
 };
 
 
@@ -708,7 +781,7 @@ const handleMoveOpen = (file) => {
   activeButtonRef.current = null;
   setBulkMoveMode(false);
   setFileMoveDestination(file.folder_id ?? "");
-  setMoveFileData(file);
+  openOverlay("move-file", setMoveFileData, file);
 };
 
 const handleMakeCopy = (file) => {
@@ -717,7 +790,7 @@ const handleMakeCopy = (file) => {
   activeButtonRef.current = null;
   setBulkCopyMode(false);
   setFileCopyDestination("");
-  setCopyFileData(file);
+  openOverlay("copy-file", setCopyFileData, file);
 };
 
 const handleBulkMoveOpen = () => {
@@ -726,7 +799,7 @@ const handleBulkMoveOpen = () => {
   setOpenMenu(null);
   setMenuPosition(null);
   setBulkMoveMode(true);
-  setMoveFileData(selectedFiles[0]);
+  openOverlay("move-file", setMoveFileData, selectedFiles[0]);
 };
 
 const handleBulkCopyOpen = () => {
@@ -735,7 +808,8 @@ const handleBulkCopyOpen = () => {
   setOpenMenu(null);
   setMenuPosition(null);
   setBulkCopyMode(true);
-  setCopyFileData(selectedFiles[0]);
+  setFileCopyDestination("");
+  openOverlay("copy-file", setCopyFileData, selectedFiles[0]);
 };
 
 
@@ -747,7 +821,7 @@ const handleRenameOpen = (file) => {
   const lastDot = file.name.lastIndexOf(".");
   const hasExtension = lastDot > 0;
 
-  setRenameFileData(file);
+  openOverlay("rename-file", setRenameFileData, file);
   setRenameFileName(
     hasExtension ? file.name.slice(0, lastDot) : file.name
   );
@@ -767,8 +841,7 @@ const handleRename = async (event) => {
 const newName = `${newBaseName}${renameFileExtension}`;
 
 if (newName === renameFileData.name) {
-    setRenameFileData(null);
-    setRenameFileName("");
+    closeOverlay("rename-file");
     return;
   }
 
@@ -791,7 +864,7 @@ if (newName === renameFileData.name) {
       )
     );
 
-    setRenameFileData(null);
+    closeOverlay("rename-file");
     setRenameFileName("");
   } catch (error) {
     console.error("Rename file error:", error);
@@ -802,7 +875,7 @@ if (newName === renameFileData.name) {
 };
 
 const closeShare = () => {
-  setShareFileData(null);
+  closeOverlay("share-file");
 };
 
 
@@ -844,7 +917,7 @@ const handleMove = async (folderId) => {
       );
     }
 
-    setMoveFileData(null);
+    closeOverlay("move-file");
     setBulkMoveMode(false);
   } finally {
     setMovingFile(false);
@@ -887,8 +960,8 @@ const handleCopyToFolder = async (folderId) => {
       );
     }
 
-    setCopyFileData(null);
-    setBulkCopyMode(false);
+   closeOverlay("copy-file");
+   setBulkCopyMode(false);
   } finally {
     setCopyingToFolder(false);
   }
@@ -911,8 +984,8 @@ const handleCreateFolder = async (event) => {
       ...currentFolders,
     ]);
 
-    setFolderName("");
-    setShowFolderModal(false);
+setFolderName("");
+closeOverlay("create-folder");
   } catch (error) {
     console.error("Create folder error:", error);
     alert("Could not create the folder. Please try again.");
@@ -935,11 +1008,11 @@ const handleRenameFolder = async (event) => {
 
   const newName = renameFolderName.trim();
 
-  if (newName === renameFolderData.name) {
-    setRenameFolderData(null);
-    setRenameFolderName("");
-    return;
-  }
+if (newName === renameFolderData.name) {
+  closeOverlay("rename-folder");
+  setRenameFolderName("");
+  return;
+}
 
   setRenamingFolder(true);
 
@@ -954,8 +1027,8 @@ const handleRenameFolder = async (event) => {
       )
     );
 
-    setRenameFolderData(null);
-    setRenameFolderName("");
+closeOverlay("rename-folder");
+setRenameFolderName("");
   } catch (error) {
     console.error("Rename folder error:", error);
     alert("Could not rename the folder. Please try again.");
@@ -1062,7 +1135,13 @@ const handleBulkCopyFolders = () => {
   if (foldersToCopy.length === 0) return;
 
   setFolderCopyDestination("");
-  setShowCopyFoldersModal(true);
+
+  openOverlay(
+    "copy-folders",
+    setShowCopyFoldersModal,
+    true,
+    false
+  );
 };
 
 const handleConfirmBulkCopyFolders = async () => {
@@ -1093,7 +1172,7 @@ const handleConfirmBulkCopyFolders = async () => {
       }
     }
 
-    setShowCopyFoldersModal(false);
+    closeOverlay("copy-folders");
     setSelectedFolderIds([]);
     await loadFilesAndFolders();
 
@@ -1118,7 +1197,13 @@ const handleBulkMoveFolders = () => {
   if (foldersToMove.length === 0) return;
 
   setFolderMoveDestination("");
-  setShowMoveFoldersModal(true);
+
+  openOverlay(
+    "move-folders",
+    setShowMoveFoldersModal,
+    true,
+    false
+  );
 };
 
 const handleConfirmBulkMoveFolders = async () => {
@@ -1149,7 +1234,7 @@ const handleConfirmBulkMoveFolders = async () => {
       }
     }
 
-    setShowMoveFoldersModal(false);
+    closeOverlay("move-folders");
     setSelectedFolderIds([]);
 
     // If we moved the folder currently being viewed, return to My Files.
@@ -1436,11 +1521,11 @@ const handleDownloadFolder = async (folder) => {
   }
 };
 
-  const closePreview = () => {
-    setPreviewFile(null);
-    setPreviewUrl(null);
-    setPreviewLoading(false);
-  };
+const closePreview = () => {
+  closeOverlay("preview");
+  setPreviewUrl(null);
+  setPreviewLoading(false);
+};
 
   if (loading || loadingFolders) {
   return <NovaLoader message="Loading your files..." />;
@@ -1531,28 +1616,29 @@ const handleDownloadFolder = async (folder) => {
     </span>
   </div>
 
-  <button
-    type="button"
-    className="new-folder-button"
-    onClick={() => {
-      setFolderName("");
-      setShowFolderModal(true);
-    }}
-  >
+<button
+  type="button"
+  className="new-folder-button"
+  onClick={() => {
+    setFolderName("");
+    openOverlay("create-folder", setShowFolderModal, true, false);
+  }}
+>
     <Plus size={17} />
     <span>New Folder</span>
   </button>
 
   <button
-    type="button"
-    className="new-folder-button"
-    onClick={() => {
-      window.location.href = "/documents/new";
-    }}
-  >
-    <FileText size={17} />
-    <span>New Document</span>
-  </button>
+  type="button"
+  className="new-folder-button"
+  onClick={() => {
+    const newDocumentId = `new-${crypto.randomUUID()}`;
+    navigate(`/documents/${newDocumentId}`);
+  }}
+>
+  <FileText size={17} />
+  <span>New Document</span>
+</button>
 </div>
 
 </div>
@@ -1819,11 +1905,11 @@ setOpenFolderMenu(folder.id);
       <button
         type="button"
         onClick={() => {
-          setRenameFolderData(folder);
-          setRenameFolderName(folder.name);
-          setOpenFolderMenu(null);
-          setFolderMenuPosition(null);
-        }}
+openOverlay("rename-folder", setRenameFolderData, folder);
+  setRenameFolderName(folder.name);
+  setOpenFolderMenu(null);
+  setFolderMenuPosition(null);
+}}
       >
         <Pencil size={16} />
         Rename
@@ -1834,7 +1920,7 @@ setOpenFolderMenu(folder.id);
   onClick={() => {
     setOpenFolderMenu(null);
     setFolderMenuPosition(null);
-    setShareFolderData(folder);
+    openOverlay("share-folder", setShareFolderData, folder);
   }}
 >
   <Share2 size={16} />
@@ -1844,7 +1930,7 @@ setOpenFolderMenu(folder.id);
       <button
         type="button"
         onClick={() => {
-          setFolderDetailsData(folder);
+          openOverlay("folder-details", setFolderDetailsData, folder);
           setOpenFolderMenu(null);
           setFolderMenuPosition(null);
         }}
@@ -2174,7 +2260,7 @@ setOpenFolderMenu(folder.id);
     setOpenMenu(null);
     setMenuPosition(null);
     activeButtonRef.current = null;
-    setDetailsFile(file);
+    openOverlay("file-details", setDetailsFile, file);
   }}
 >
   <File size={16} />
@@ -2331,7 +2417,7 @@ setOpenFolderMenu(folder.id);
     setOpenMenu(null);
     setMenuPosition(null);
     activeButtonRef.current = null;
-    setDetailsFile(file);
+    openOverlay("file-details", setDetailsFile, file);
   }}
 >
   <File size={16} />
@@ -2371,7 +2457,7 @@ setOpenFolderMenu(folder.id);
 {shareFolderData && (
   <ShareFolderModal
     folder={shareFolderData}
-    onClose={() => setShareFolderData(null)}
+    onClose={() => closeOverlay("share-folder")}
     onShared={loadFilesAndFolders}
   />
 )}
@@ -2383,7 +2469,7 @@ setOpenFolderMenu(folder.id);
     onMouseDown={(event) => {
       if (event.target === event.currentTarget) {
         if (!creatingFolder) {
-          setShowFolderModal(false);
+          closeOverlay("create-folder");
         }
       }
     }}
@@ -2412,7 +2498,7 @@ setOpenFolderMenu(folder.id);
         <button
           type="button"
           className="folder-modal-close"
-          onClick={() => setShowFolderModal(false)}
+          onClick={() => closeOverlay("create-folder")}
           disabled={creatingFolder}
           aria-label="Close"
         >
@@ -2442,7 +2528,7 @@ setOpenFolderMenu(folder.id);
           <button
             type="button"
             className="folder-cancel-button"
-            onClick={() => setShowFolderModal(false)}
+            onClick={() => closeOverlay("create-folder")}
             disabled={creatingFolder}
           >
             Cancel
@@ -2470,7 +2556,7 @@ setOpenFolderMenu(folder.id);
   <div
     className="folder-copy-overlay"
     onClick={() => {
-      if (!movingFile) setMoveFileData(null);
+      if (!movingFile) closeOverlay("move-file");
     }}
   >
     <div
@@ -2493,7 +2579,7 @@ setOpenFolderMenu(folder.id);
         <button
           type="button"
           className="folder-copy-close"
-          onClick={() => setMoveFileData(null)}
+          onClick={() => closeOverlay("move-file")}
           disabled={movingFile}
           aria-label="Close dialog"
         >
@@ -2548,7 +2634,7 @@ setOpenFolderMenu(folder.id);
         <button
           type="button"
           className="bulk-clear-button"
-          onClick={() => setMoveFileData(null)}
+          onClick={() => closeOverlay("move-file")}
           disabled={movingFile}
         >
           Cancel
@@ -2578,7 +2664,7 @@ setOpenFolderMenu(folder.id);
   <div
     className="folder-copy-overlay"
     onClick={() => {
-      if (!copyingToFolder) setCopyFileData(null);
+      if (!copyingToFolder) closeOverlay("copy-file");
     }}
   >
     <div
@@ -2601,7 +2687,7 @@ setOpenFolderMenu(folder.id);
         <button
           type="button"
           className="folder-copy-close"
-          onClick={() => setCopyFileData(null)}
+          onClick={() => closeOverlay("copy-file")}
           disabled={copyingToFolder}
           aria-label="Close dialog"
         >
@@ -2656,7 +2742,7 @@ setOpenFolderMenu(folder.id);
         <button
           type="button"
           className="bulk-clear-button"
-          onClick={() => setCopyFileData(null)}
+          onClick={() => closeOverlay("copy-file")}
           disabled={copyingToFolder}
         >
           Cancel
@@ -2688,7 +2774,7 @@ setOpenFolderMenu(folder.id);
         event.target === event.currentTarget &&
         !renamingFile
       ) {
-        setRenameFileData(null);
+        closeOverlay("rename-file");
         setRenameFileName("");
       }
     }}
@@ -2718,7 +2804,7 @@ setOpenFolderMenu(folder.id);
           type="button"
           className="folder-modal-close"
           onClick={() => {
-            setRenameFileData(null);
+            closeOverlay("rename-file");
             setRenameFileName("");
           }}
           disabled={renamingFile}
@@ -2758,7 +2844,7 @@ setOpenFolderMenu(folder.id);
             type="button"
             className="folder-cancel-button"
             onClick={() => {
-              setRenameFileData(null);
+              closeOverlay("rename-file");
               setRenameFileName("");
             }}
             disabled={renamingFile}
@@ -2814,7 +2900,7 @@ setOpenFolderMenu(folder.id);
         event.target === event.currentTarget &&
         !renamingFolder
       ) {
-        setRenameFolderData(null);
+        closeOverlay("rename-folder");
         setRenameFolderName("");
       }
     }}
@@ -2844,7 +2930,7 @@ setOpenFolderMenu(folder.id);
           type="button"
           className="folder-modal-close"
           onClick={() => {
-            setRenameFolderData(null);
+            closeOverlay("rename-folder");
             setRenameFolderName("");
           }}
           disabled={renamingFolder}
@@ -2876,7 +2962,7 @@ setOpenFolderMenu(folder.id);
             type="button"
             className="folder-cancel-button"
             onClick={() => {
-              setRenameFolderData(null);
+              closeOverlay("rename-folder");
               setRenameFolderName("");
             }}
             disabled={renamingFolder}
@@ -2907,7 +2993,7 @@ setOpenFolderMenu(folder.id);
         (folder) => folder.id === detailsFile.folder_id
       )?.name || "My Files"
     }
-    onClose={() => setDetailsFile(null)}
+    onClose={() => closeOverlay("file-details")}
   />
 )}
 
@@ -2915,7 +3001,7 @@ setOpenFolderMenu(folder.id);
 {showCopyFoldersModal && (
   <div
     className="folder-copy-overlay"
-    onClick={() => setShowCopyFoldersModal(false)}
+    onClick={() => closeOverlay("copy-folders")}
   >
     <div
       className="folder-copy-modal"
@@ -2933,7 +3019,7 @@ setOpenFolderMenu(folder.id);
         <button
           type="button"
           className="folder-copy-close"
-          onClick={() => setShowCopyFoldersModal(false)}
+          onClick={() => closeOverlay("copy-folders")}
           aria-label="Close dialog"
         >
           <X size={20} />
@@ -3011,7 +3097,7 @@ setOpenFolderMenu(folder.id);
         <button
           type="button"
           className="bulk-clear-button"
-          onClick={() => setShowCopyFoldersModal(false)}
+          onClick={() => closeOverlay("copy-folders")}
           disabled={bulkActionLoading}
         >
           Cancel
@@ -3036,8 +3122,8 @@ setOpenFolderMenu(folder.id);
   <div
     className="folder-copy-overlay"
     onClick={() => {
-      if (!bulkActionLoading) setShowMoveFoldersModal(false);
-    }}
+  if (!bulkActionLoading) closeOverlay("move-folders");
+}}
   >
     <div
       className="folder-copy-modal"
@@ -3055,7 +3141,7 @@ setOpenFolderMenu(folder.id);
         <button
           type="button"
           className="folder-copy-close"
-          onClick={() => setShowMoveFoldersModal(false)}
+          onClick={() => closeOverlay("move-folders")}
           disabled={bulkActionLoading}
           aria-label="Close dialog"
         >
@@ -3129,7 +3215,7 @@ setOpenFolderMenu(folder.id);
         <button
           type="button"
           className="bulk-clear-button"
-          onClick={() => setShowMoveFoldersModal(false)}
+          onClick={() => closeOverlay("move-folders")}
           disabled={bulkActionLoading}
         >
           Cancel
@@ -3154,7 +3240,7 @@ setOpenFolderMenu(folder.id);
     className="folder-modal-overlay"
     onMouseDown={(event) => {
       if (event.target === event.currentTarget) {
-        setFolderDetailsData(null);
+        closeOverlay("folder-details");
       }
     }}
   >
@@ -3178,7 +3264,7 @@ setOpenFolderMenu(folder.id);
         <button
           type="button"
           className="folder-modal-close"
-          onClick={() => setFolderDetailsData(null)}
+          onClick={() => closeOverlay("folder-details")}
           aria-label="Close"
         >
           ×
@@ -3237,7 +3323,7 @@ setOpenFolderMenu(folder.id);
         <button
           type="button"
           className="folder-create-button"
-          onClick={() => setFolderDetailsData(null)}
+          onClick={() => closeOverlay("folder-details")}
         >
           Done
         </button>

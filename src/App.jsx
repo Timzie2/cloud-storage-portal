@@ -1,4 +1,10 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+import {
+  createBrowserRouter,
+  RouterProvider,
+  Routes,
+  Route,
+} from "react-router-dom";
 
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
@@ -16,6 +22,8 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import AppLayout from "./components/AppLayout";
 import NovaLoader from "./components/NovaLoader";
+import Office from "./pages/Office";
+import { NavigationGuardProvider } from "./context/NavigationGuardContext";
 
 import "./styles/theme.css";
 import "./styles/components.css";
@@ -28,51 +36,53 @@ function AppContent() {
     return <NovaLoader />;
   }
 
-  return (
-    <BrowserRouter>
-      {user ? (
-        <AppLayout>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <Dashboard
-                  onViewAll={() => {
-                    window.location.href = "/files";
-                  }}
-                />
-              }
-            />
-
-            <Route path="/files" element={<Files />} />
-            <Route path="/shared" element={<Shared />} />
-            <Route path="/recent" element={<Recent />} />
-            <Route path="/trash" element={<Trash />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/favorites" element={<Favorites />} />
-                        <Route
-              path="/documents/:documentId"
-              element={<Documents />}
-            />
-          </Routes>
-        </AppLayout>
-      ) : (
+  return user ? (
+    <NavigationGuardProvider>
+      <AppLayout>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="*" element={<Home />} />
+          <Route
+            path="/"
+            element={
+              <Dashboard
+                onViewAll={() => {
+                  window.location.href = "/files";
+                }}
+              />
+            }
+          />
+          <Route path="/files" element={<Files />} />
+          <Route path="/shared" element={<Shared />} />
+          <Route path="/recent" element={<Recent />} />
+          <Route path="/trash" element={<Trash />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/favorites" element={<Favorites />} />
+          <Route path="/documents/:documentId" element={<Documents />} />
+          <Route path="/office" element={<Office />} />
         </Routes>
-      )}
-    </BrowserRouter>
+      </AppLayout>
+    </NavigationGuardProvider>
+  ) : (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/auth" element={<Auth />} />
+      <Route path="*" element={<Home />} />
+    </Routes>
   );
 }
+
+const router = createBrowserRouter([
+  {
+    path: "*",
+    element: <AppContent />,
+  },
+]);
 
 function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AppContent />
+        <RouterProvider router={router} />
       </AuthProvider>
     </ThemeProvider>
   );

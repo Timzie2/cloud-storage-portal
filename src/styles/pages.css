@@ -4069,6 +4069,26 @@
     color 0.2s ease;
 }
 
+/* NOVA Office menu item */
+.profile-menu-item.office-menu-item {
+  color: #a78bfa;
+  background: rgba(139, 92, 246, 0.08);
+  font-weight: 600;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.profile-menu-item.office-menu-item:hover {
+  background: rgba(139, 92, 246, 0.16);
+  color: #8b5cf6;
+}
+
+.profile-menu-item.office-menu-item svg {
+  color: #8b5cf6;
+}
+
 .profile-menu-item:hover {
   background: var(--surface-hover);
 }

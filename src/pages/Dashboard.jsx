@@ -10,6 +10,7 @@ import {
   UploadCloud,
   ArrowRight,
   Search,
+  AppWindow,
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
@@ -40,6 +41,57 @@ function Dashboard() {
   const { user, logout } = useAuth();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
+
+  const overlayStackRef = useRef([]);
+
+const openOverlay = (key, setter) => {
+  const id = `${key}-${crypto.randomUUID()}`;
+
+  overlayStackRef.current.push({
+    id,
+    key,
+    setter,
+  });
+
+  window.history.pushState(
+    {
+      ...window.history.state,
+      novaOverlayId: id,
+    },
+    ""
+  );
+};
+
+const closeOverlay = (key) => {
+  const stack = overlayStackRef.current;
+  const topOverlay = stack[stack.length - 1];
+
+  if (topOverlay?.key === key) {
+    window.history.back();
+  }
+};
+
+useEffect(() => {
+  const handlePopState = (event) => {
+    const stack = overlayStackRef.current;
+    const topOverlay = stack[stack.length - 1];
+
+    if (!topOverlay) return;
+
+    if (event.state?.novaOverlayId === topOverlay.id) {
+      return;
+    }
+
+    stack.pop();
+    topOverlay.setter(false);
+  };
+
+  window.addEventListener("popstate", handlePopState);
+
+  return () => {
+    window.removeEventListener("popstate", handlePopState);
+  };
+}, []);
 
     const refreshStorageQuota = async () => {
   if (!user) return;
@@ -128,7 +180,7 @@ useEffect(() => {
 
   const handleOutsideClick = (event) => {
     if (!profileMenuRef.current?.contains(event.target)) {
-      setProfileMenuOpen(false);
+      closeOverlay("dashboard-profile");
     }
   };
 
@@ -147,13 +199,13 @@ useEffect(() => {
 
   const handleOutsideClick = (event) => {
     if (!searchRef.current?.contains(event.target)) {
-      setMobileSearchOpen(false);
+      closeOverlay("dashboard-search");
     }
   };
 
   const handleEscape = (event) => {
     if (event.key === "Escape") {
-      setMobileSearchOpen(false);
+      closeOverlay("dashboard-search");
     }
   };
 
@@ -205,6 +257,7 @@ return (
       window.innerWidth <= 600 &&
       !mobileSearchOpen
     ) {
+      openOverlay("dashboard-search", setMobileSearchOpen);
       setMobileSearchOpen(true);
 
       setTimeout(() => {
@@ -252,9 +305,14 @@ return (
   <button
     type="button"
     className="profile-menu-trigger"
-    onClick={() =>
-      setProfileMenuOpen((current) => !current)
-    }
+onClick={() => {
+  if (profileMenuOpen) {
+    closeOverlay("dashboard-profile");
+  } else {
+    openOverlay("dashboard-profile", setProfileMenuOpen);
+    setProfileMenuOpen(true);
+  }
+}}
     aria-label="Open profile menu"
     aria-expanded={profileMenuOpen}
   >
@@ -297,7 +355,7 @@ return (
         type="button"
         className="profile-menu-item"
         onClick={() => {
-          setProfileMenuOpen(false);
+          closeOverlay("dashboard-profile");
           navigate("/profile");
         }}
       >
@@ -305,11 +363,11 @@ return (
         <span>Profile</span>
       </button>
 
-      <button
+            <button
         type="button"
         className="profile-menu-item"
         onClick={() => {
-          setProfileMenuOpen(false);
+          closeOverlay("dashboard-profile");
           navigate("/settings");
         }}
       >
@@ -321,9 +379,23 @@ return (
 
       <button
         type="button"
+        className="profile-menu-item office-menu-item"
+        onClick={() => {
+          closeOverlay("dashboard-profile");
+          navigate("/office");
+        }}
+      >
+        <AppWindow size={17} />
+        <span>NOVA Office</span>
+      </button>
+
+      <div className="profile-menu-divider" />
+
+      <button
+        type="button"
         className="profile-menu-item danger"
         onClick={async () => {
-          setProfileMenuOpen(false);
+          closeOverlay("dashboard-profile");
           await logout();
         }}
       >

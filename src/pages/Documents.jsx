@@ -15,7 +15,7 @@ import { TextStyleKit } from "@tiptap/extension-text-style";
 import ColorPicker from "../components/ColorPicker";
 import "../styles/document.css";
 import {
-  ArrowLeft, Bold, Italic, List, ListOrdered, Heading1, Heading2, RotateCw, Save, Underline as UnderlineIcon, Strikethrough,
+  ArrowLeft, AlertCircle, Bold, Italic, List, ListOrdered, Heading1, Heading2, RotateCw, Save, Underline as UnderlineIcon, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify, Highlighter,
   MoreHorizontal, Link2, Unlink, Download, Users, MessageSquare,
   MoreVertical, Search, X, ChevronUp, ChevronDown, FileText,
@@ -32,7 +32,8 @@ import {
 } from "docx";
 
 import { useAuth } from "../context/AuthContext";
-import { createDocument, getDocument, saveDocument } from "../services/documents";
+import { useNavigationGuard } from "../context/NavigationGuardContext";
+import { getDocument, saveDocument } from "../services/documents";
 import {
   uploadDocumentImage,
   getDocumentImageUrl,
@@ -41,6 +42,7 @@ import {
 import {
   updateOriginalDocx,
   saveDocumentDocxOutput,
+  saveNewDocxToMyFiles,
   getDocxVersions,
   downloadDocxVersion,
   restoreDocxVersion,
@@ -526,8 +528,22 @@ export default function Documents() {
   const { documentId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+ const {
+  registerNavigationGuard,
+  blockedNavigation,
+  allowNextNavigation,
+} = useNavigationGuard();
+  const isNewDocument =
+  documentId === "new" || documentId.startsWith("new-");
+const temporarySessionKey =
+  user?.id && documentId
+    ? `nova-doc-session:${user.id}:${documentId}`
+    : null;
   const location = useLocation();
+  const returnTo = location.state?.from || "/files";
+  const returnLabel = returnTo === "/office" ? "Office" : "My Files";
   const creationPromiseRef = useRef(null);
+  const skipNextTemporaryAutosaveRef = useRef(false);
   const pendingDocxFile = location.state?.pendingDocxFile || null;
   const pendingFileName = location.state?.fileName || "";
 
@@ -537,6 +553,10 @@ export default function Documents() {
   const [title, setTitle] = useState("Untitled document");
   const [content, setContent] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [hasEditedDocument, setHasEditedDocument] = useState(false);
+  // Stores the last permanently saved document version.
+  const savedVersionRef = useRef(null);
+  const isInitializingDocumentRef = useRef(true);
   const [saveStatus, setSaveStatus] = useState("Loading document...");
   const [loadError, setLoadError] = useState("");
   const [showMoreTools, setShowMoreTools] = useState(false);
@@ -568,6 +588,8 @@ export default function Documents() {
   const [updatingOriginal, setUpdatingOriginal] = useState(false);
   const [savingToMyFiles, setSavingToMyFiles] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState(null);
   const [versions, setVersions] = useState([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [versionActionId, setVersionActionId] = useState(null);
@@ -601,11 +623,80 @@ export default function Documents() {
         "aria-label": "Document content",
       },
     },
-    onUpdate: ({ editor: currentEditor }) => {
-      setContent(currentEditor.getJSON());
-      setSaveStatus("Unsaved changes");
-    },
+onUpdate: ({ editor: currentEditor }) => {
+  if (isInitializingDocumentRef.current) return;
+
+  setContent(currentEditor.getJSON());
+  setHasEditedDocument(true);
+  setSaveStatus("Unsaved changes");
+},
   });
+
+const hasUnsavedChanges = loaded && hasEditedDocument;
+
+  useEffect(() => {
+  const handleBeforeUnload = (event) => {
+    if (!hasUnsavedChanges) return;
+
+    event.preventDefault();
+    event.returnValue = "";
+  };
+
+  window.addEventListener("beforeunload", handleBeforeUnload);
+
+  return () => {
+    window.removeEventListener("beforeunload", handleBeforeUnload);
+  };
+}, [hasUnsavedChanges]);
+
+const handleBackNavigation = () => {
+  if (hasUnsavedChanges) {
+    setShowUnsavedModal(true);
+    return;
+  }
+
+  navigate(returnTo);
+};
+
+useEffect(() => {
+  const guard = {
+    isDirty: () => hasUnsavedChanges,
+
+    onRequest: (destination) => {
+      if (hasUnsavedChanges) {
+        setPendingNavigation(destination);
+        setShowUnsavedModal(true);
+        return;
+      }
+
+      navigate(destination);
+    },
+  };
+
+  return registerNavigationGuard(guard);
+}, [registerNavigationGuard, hasUnsavedChanges, navigate]);
+
+useEffect(() => {
+  if (blockedNavigation) {
+    setPendingNavigation(null);
+    setShowUnsavedModal(true);
+  }
+}, [blockedNavigation]);
+
+const confirmLeaveWithoutSaving = () => {
+  setShowUnsavedModal(false);
+
+  allowNextNavigation();
+
+  if (blockedNavigation) {
+    blockedNavigation.proceed();
+    return;
+  }
+
+  const destination = pendingNavigation || returnTo;
+  setPendingNavigation(null);
+  navigate(destination);
+};
 
   // Keep the image toolbar close to the selected image as the page scrolls.
   useEffect(() => {
@@ -668,138 +759,239 @@ setImageToolbarPosition({ top, left });
     };
   }, [editor]);
 
-  useEffect(() => {
-    if (!editor || !documentId || !user?.id) return;
-    let cancelled = false;
+useEffect(() => {
+  if (!editor || !documentId || !user?.id) return;
 
-    async function load() {
-      setLoaded(false);
-      setLoadError("");
-      setSaveStatus(documentId === "new" ? "Creating document..." : "Loading document...");
-      try {
-        if (documentId === "new") {
-  const incomingSourceFileId = location.state?.sourceFileId || null;
+  let cancelled = false;
 
-  const created = await createDocument(
-    user.id,
-    location.state?.fileName?.replace(/\.docx$/i, "") || "Untitled document",
-    incomingSourceFileId
-  );
-          if (cancelled) return;
-          navigate(`/documents/${created.id}`, {
-  replace: true,
-  state: location.state,
-});
-          return;
-        }
+async function load() {
+  // The DOCX has already been imported.
+  // Don't initialise the editor again when its route state is cleared.
+  if (autoImportStartedRef.current && !pendingDocxFile) {
+    return;
+  }
+
+  setLoaded(false);
+  isInitializingDocumentRef.current = true;
+  setHasEditedDocument(false);
+  setLoadError("");
+    setSaveStatus(
+      isNewDocument
+        ? "Preparing document..."
+        : "Loading document..."
+    );
+
+    try {
+      let initialTitle = "Untitled document";
+      let initialContent = {
+        type: "doc",
+        content: [{ type: "paragraph" }],
+      };
+
+let savedSession =
+  documentId === "new" && !pendingDocxFile && temporarySessionKey
+    ? sessionStorage.getItem(temporarySessionKey)
+    : null;
+
+      if (isNewDocument) {
+        initialTitle =
+          location.state?.fileName?.replace(/\.docx$/i, "") ||
+          "Untitled document";
+
+        setSourceFileId(location.state?.sourceFileId || null);
+      } else {
         const document = await getDocument(documentId);
+
         if (cancelled) return;
+
         setSourceFileId(document.source_file_id || null);
-        setTitle(document.title || "Untitled document");
+        initialTitle = document.title || "Untitled document";
 
-const documentContent =
-  document.content || {
-    type: "doc",
-    content: [{ type: "paragraph" }],
-  };
+        const documentContent = document.content || initialContent;
 
-// Restore fresh signed URLs for stored images.
-const restoreImageUrls = async (node) => {
-  if (!node || typeof node !== "object") return node;
+        const restoreImageUrls = async (node) => {
+          if (!node || typeof node !== "object") return node;
 
-  const restoredNode = { ...node };
+          const restoredNode = { ...node };
 
-  if (restoredNode.type === "image" && restoredNode.attrs?.storagePath) {
-    const imageUrl = await getDocumentImageUrl(
-      restoredNode.attrs.storagePath
-    );
+          if (
+            restoredNode.type === "image" &&
+            restoredNode.attrs?.storagePath
+          ) {
+            const imageUrl = await getDocumentImageUrl(
+              restoredNode.attrs.storagePath
+            );
 
-    restoredNode.attrs = {
-      ...restoredNode.attrs,
-      src: imageUrl,
-    };
-  }
+            restoredNode.attrs = {
+              ...restoredNode.attrs,
+              src: imageUrl,
+            };
+          }
 
-  if (Array.isArray(restoredNode.content)) {
-    restoredNode.content = await Promise.all(
-      restoredNode.content.map(restoreImageUrls)
-    );
-  }
+          if (Array.isArray(restoredNode.content)) {
+            restoredNode.content = await Promise.all(
+              restoredNode.content.map(restoreImageUrls)
+            );
+          }
 
-  return restoredNode;
-};
+          return restoredNode;
+        };
 
-const restoredContent = await restoreImageUrls(documentContent);
+        initialContent = await restoreImageUrls(documentContent);
 
-if (cancelled) return;
+        if (cancelled) return;
+      }
 
-setContent(restoredContent);
-
-editor.commands.setContent(restoredContent, {
+// Capture the permanently saved version using TipTap's
+// normalized document structure.
+editor.commands.setContent(initialContent, {
   emitUpdate: false,
 });
 
-// Automatically import a DOCX passed from the Files page.
-const pendingDocxFile = location.state?.pendingDocxFile;
+const permanentlySavedContent = editor.getJSON();
 
-if (pendingDocxFile && !autoImportStartedRef.current) {
-  autoImportStartedRef.current = true;
+savedVersionRef.current = {
+  title: initialTitle,
+  content: JSON.stringify(permanentlySavedContent),
+};
 
-  await handleImportDocx(pendingDocxFile, {
-    throwOnError: true,
-  });
+      // Restore any temporary editing session.
+      if (savedSession) {
+        try {
+          const parsedSession = JSON.parse(savedSession);
 
-  const { pendingDocxFile: _, ...remainingState } = location.state || {};
-
-  navigate(location.pathname, {
-    replace: true,
-    state: remainingState,
-  });
-}
-
-if (cancelled) return;
-
-setLoaded(true);
-
-if (!pendingDocxFile) {
-  setSaveStatus("All changes saved");
-}
-      } catch (error) {
-        if (cancelled) return;
-        console.error("Unable to load document:", error);
-        setLoadError(error.message || "We couldn't open this document. Check that you have access and try again.");
-        setSaveStatus("Couldn't load document");
+          initialTitle = parsedSession.title || initialTitle;
+          initialContent = parsedSession.content || initialContent;
+        } catch (error) {
+          console.error(
+            "Unable to restore temporary document session:",
+            error
+          );
+        }
       }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [editor, documentId, user?.id, navigate, location.state]);
 
-// Debounced autosave. Store permanent image paths, not temporary signed URLs.
-useEffect(() => {
-  if (!loaded || !editor || !content) return;
+setTitle(initialTitle);
+setContent(initialContent);
 
-  const timeout = window.setTimeout(async () => {
-    setSaveStatus("Saving...");
+if (savedSession) {
+  setHasEditedDocument(false);
+} else {
+  setHasEditedDocument(false);
+}
 
-    try {
-      const contentToSave = prepareContentForSave(content);
+      editor.commands.setContent(initialContent, {
+        emitUpdate: false,
+      });
 
-      await saveDocument(
-        documentId,
-        title.trim() || "Untitled document",
-        contentToSave
+      if (cancelled) return;
+
+      setLoaded(true);
+
+      // Import a Word document passed from My Files.
+      if (
+        pendingDocxFile &&
+        !autoImportStartedRef.current &&
+        !savedSession
+      ) {
+        autoImportStartedRef.current = true;
+
+        await handleImportDocx(pendingDocxFile, {
+          throwOnError: true,
+        });
+
+        if (cancelled) return;
+
+        // Remove the pending file from route state to prevent re-importing.
+        const {
+          pendingDocxFile: _,
+          ...remainingState
+        } = location.state || {};
+
+        navigate(location.pathname, {
+          replace: true,
+          state: remainingState,
+        });
+      } else if (savedSession) {
+        setSaveStatus("Restored temporary session");
+      } else if (pendingDocxFile) {
+        setSaveStatus("Imported — temporarily saved");
+      } else if (isNewDocument) {
+        setSaveStatus("Unsaved changes");
+      } else {
+        setSaveStatus("All changes saved");
+      }
+      isInitializingDocumentRef.current = false;
+    } catch (error) {
+      if (cancelled) return;
+
+      console.error("Unable to load document:", error);
+
+      setLoadError(
+        error.message ||
+          "We couldn't open this document. Check that you have access and try again."
       );
 
-      setSaveStatus("All changes saved");
+      setSaveStatus("Couldn't load document");
+    }
+  }
+
+  load();
+
+  return () => {
+    cancelled = true;
+  };
+}, [
+  editor,
+  documentId,
+  user?.id,
+  navigate,
+  location.state,
+]);
+
+
+// Debounced temporary autosave for both new and existing documents.
+useEffect(() => {
+  if (
+  !loaded ||
+  !editor ||
+  !content ||
+  !temporarySessionKey ||
+  !hasEditedDocument
+) return;
+
+if (skipNextTemporaryAutosaveRef.current) {
+  skipNextTemporaryAutosaveRef.current = false;
+  return;
+}
+
+  const timeout = window.setTimeout(() => {
+    try {
+      sessionStorage.setItem(
+        temporarySessionKey,
+        JSON.stringify({
+          title: title.trim() || "Untitled document",
+          content,
+          updatedAt: new Date().toISOString(),
+        })
+      );
+
+      setSaveStatus("Temporarily saved");
     } catch (error) {
-      console.error("Unable to save document:", error);
-      setSaveStatus("Save failed — your latest changes may not be saved");
+      console.error("Unable to save temporary session:", error);
+      setSaveStatus("Temporary save failed");
     }
   }, 800);
 
   return () => window.clearTimeout(timeout);
-}, [loaded, editor, documentId, title, content]);
+}, [
+  loaded,
+  editor,
+  title,
+  content,
+  temporarySessionKey,
+  hasEditedDocument,
+]);
+
 
   const runCommand = useCallback((command) => {
     if (!editor) return;
@@ -923,11 +1115,13 @@ const handleExportDocx = async () => {
     document.body.removeChild(link);
 
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
   } catch (error) {
     console.error("DOCX export failed:", error);
     alert("Unable to export document. Please try again.");
   }
 };
+
 
 const handleSaveToMyFiles = async () => {
   if (!editor || !user?.id || savingToMyFiles) return;
@@ -936,32 +1130,80 @@ const handleSaveToMyFiles = async () => {
     setSavingToMyFiles(true);
     setSaveStatus("Saving to My Files...");
 
-    // Ensure the latest document content is saved first.
-    await saveDocument(
-      documentId,
-      title.trim() || "Untitled document",
-      prepareContentForSave(editor.getJSON())
-    );
+    const documentTitle = title.trim() || "Untitled document";
 
-    // Generate the DOCX and save it to My Files.
+    // Generate the DOCX using the current editor content.
     const blob = await generateDocxBlob();
 
-    await saveDocumentDocxOutput(
-      documentId,
-      user.id,
-      blob,
-      title.trim() || "Untitled document"
-    );
+    if (isNewDocument) {
+      // New documents are saved directly as DOCX files.
+      // Embedded images are included inside the DOCX.
+      await saveNewDocxToMyFiles(
+        user.id,
+        blob,
+        documentTitle
+      );
+    } else {
+      // Upload embedded Base64 images to permanent storage.
+      const currentContent = editor.getJSON();
+
+      const contentWithUploadedImages =
+        await uploadEmbeddedImages(
+          currentContent,
+          user.id,
+          documentId
+        );
+
+      // Save the document content with permanent image paths.
+      await saveDocument(
+        documentId,
+        documentTitle,
+        prepareContentForSave(contentWithUploadedImages)
+      );
+
+      // Save the DOCX copy to My Files.
+      await saveDocumentDocxOutput(
+        documentId,
+        user.id,
+        blob,
+        documentTitle
+      );
+
+      // Update the editor with the permanently uploaded image URLs.
+skipNextTemporaryAutosaveRef.current = true;
+
+editor.commands.setContent(contentWithUploadedImages, {
+  emitUpdate: false,
+});
+
+setContent(contentWithUploadedImages);
+    }
+
+    // Clear the temporary session only after all permanent saves succeed.
+    if (temporarySessionKey) {
+      sessionStorage.removeItem(temporarySessionKey);
+    }
+
+    savedVersionRef.current = {
+  title: title.trim() || "Untitled document",
+  content: JSON.stringify(editor.getJSON()),
+};
 
     setSaveStatus("Saved to My Files");
+    setHasEditedDocument(false);
   } catch (error) {
     console.error("Saving DOCX to My Files failed:", error);
     setSaveStatus("Save to My Files failed");
-    alert(error.message || "Unable to save this document to My Files.");
+
+    alert(
+      error.message ||
+      "Unable to save this document to My Files."
+    );
   } finally {
     setSavingToMyFiles(false);
   }
 };
+
 
 const handleUpdateOriginalDocx = async () => {
   if (!sourceFileId || !editor || updatingOriginal) return;
@@ -977,7 +1219,24 @@ const handleUpdateOriginalDocx = async () => {
 
     const blob = await generateDocxBlob();
 
-    await updateOriginalDocx(sourceFileId, blob);
+await updateOriginalDocx(
+  sourceFileId,
+  blob,
+  title.trim() || "Untitled document"
+);
+
+savedVersionRef.current = {
+  title: title.trim() || "Untitled document",
+  content: JSON.stringify(editor.getJSON()),
+};
+
+setHasEditedDocument(false);
+
+    if (temporarySessionKey) {
+  sessionStorage.removeItem(temporarySessionKey);
+}
+
+setSaveStatus("Saved to My Files");
 
     alert("Original DOCX updated successfully. A backup was also created.");
   } catch (error) {
@@ -1180,39 +1439,37 @@ const handleImageChoice = async (event) => {
   }
 
   try {
-    setSaveStatus("Uploading image...");
+    setSaveStatus("Adding image...");
 
-    // Upload the image to private Supabase Storage.
-    const storagePath = await uploadDocumentImage(
-      file,
-      user.id,
-      documentId
-    );
+    const reader = new FileReader();
 
-    // Generate a temporary URL for displaying the image.
-    const imageUrl = await getDocumentImageUrl(storagePath);
+    const imageUrl = await new Promise((resolve, reject) => {
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () =>
+        reject(new Error("Unable to read the selected image."));
 
-    // Insert the image with its permanent storage reference.
+      reader.readAsDataURL(file);
+    });
+
     editor
       .chain()
       .focus()
       .setImage({
         src: imageUrl,
         alt: file.name,
-        storagePath,
+        storagePath: null,
       })
       .run();
 
-    setSaveStatus("Image uploaded — saving...");
+    setSaveStatus("Image added — temporarily saved");
   } catch (error) {
-    console.error("Image upload failed:", error);
-    alert(error.message || "Unable to upload image. Please try again.");
-    setSaveStatus("Image upload failed");
+    console.error("Image handling failed:", error);
+    alert(error.message || "Unable to add image. Please try again.");
+    setSaveStatus("Image handling failed");
   } finally {
     event.target.value = "";
   }
 };
-
 
 const handleImportDocx = async (
   eventOrFile,
@@ -1241,6 +1498,7 @@ const handleImportDocx = async (
   }
 
   const previousContent = editor.getJSON();
+  const previousTitle = title;
 
   setImportingDocx(true);
   setSaveStatus("Importing Word document...");
@@ -1253,64 +1511,53 @@ const handleImportDocx = async (
       throw new Error("No readable document content was found in this file.");
     }
 
-    // Temporarily load the imported content without triggering autosave.
+    // Convert the Word document into editor content.
     editor.commands.setContent(result.value, {
       emitUpdate: false,
     });
 
-    // Upload embedded images and replace their base64 URLs.
-    const importedContent = await uploadEmbeddedImages(
-      editor.getJSON(),
-      user.id,
-      documentId
-    );
+    // Keep imported images as temporary Base64 data URLs.
+    // Do not upload images or save anything permanently.
+    const importedContent = editor.getJSON();
 
-    // Load the final content containing Storage references.
     editor.commands.setContent(importedContent, {
       emitUpdate: false,
     });
 
-const importedTitle =
-  file.name.replace(/\.docx$/i, "") || "Untitled document";
+    const importedTitle =
+      file.name.replace(/\.docx$/i, "") || "Untitled document";
 
-setContent(importedContent);
-setTitle(importedTitle);
-setSaveStatus("Saving imported document...");
-
-// Explicitly save the imported content to Supabase.
-await saveDocument(
-  documentId,
-  importedTitle,
-  prepareContentForSave(importedContent)
-);
-
-setSaveStatus("All changes saved");
+    setContent(importedContent);
+    setTitle(importedTitle);
+    setHasEditedDocument(false);
+    setSaveStatus("Imported — temporarily saved");
 
     if (result.messages?.length) {
       console.info("DOCX import notes:", result.messages);
     }
-} catch (error) {
-  console.error("DOCX import failed:", error);
+  } catch (error) {
+    console.error("DOCX import failed:", error);
 
-  // Restore the previous editor content.
-  editor.commands.setContent(previousContent, {
-    emitUpdate: false,
-  });
+    // Restore the previous editor content and title.
+    editor.commands.setContent(previousContent, {
+      emitUpdate: false,
+    });
 
-  setContent(previousContent);
-  setSaveStatus("Import failed");
+    setContent(previousContent);
+    setTitle(previousTitle);
+    setSaveStatus("Import failed");
 
-  // Only propagate the error when another handler needs to catch it.
-  if (throwOnError) {
-    throw error;
+    if (throwOnError) {
+      throw error;
+    }
+
+    alert(error.message || "Unable to import this Word document.");
+  } finally {
+    setImportingDocx(false);
+    resetInput();
   }
-
-  alert(error.message || "Unable to import this Word document.");
-} finally {
-  setImportingDocx(false);
-  resetInput();
-}
 };
+
 
   const insertTable = () => {
     if (!editor) return;
@@ -1393,9 +1640,14 @@ useEffect(() => {
   if (loadError) {
     return (
       <main className="nova-document-page">
-        <button type="button" className="nova-document-back" onClick={() => navigate("/files")}>
-          <ArrowLeft size={18} /> Back to My Files
-        </button>
+        <button
+  type="button"
+  className="nova-document-back"
+  onClick={handleBackNavigation}
+>
+  <ArrowLeft size={18} />
+  Back to {returnLabel}
+</button>
         <p role="alert">{loadError}</p>
       </main>
     );
@@ -1404,15 +1656,25 @@ useEffect(() => {
   return (
     <main ref={pageRef} className={`nova-document-page ${fullscreen ? "is-fullscreen" : ""}`}>
       <header className="nova-document-header">
-        <button type="button" className="nova-document-back" onClick={() => navigate("/files")} aria-label="Back to My Files">
-          <ArrowLeft size={18} /><span>My Files</span>
-        </button>
+        <button
+  type="button"
+  className="nova-document-back"
+  onClick={handleBackNavigation}
+  aria-label={`Back to ${returnLabel}`}
+>
+  <ArrowLeft size={18} />
+  <span>{returnLabel}</span>
+</button>
 
         <div className="nova-document-heading">
           <input
             className="nova-document-title"
             value={title}
-            onChange={(event) => { setTitle(event.target.value); setSaveStatus("Unsaved changes"); }}
+            onChange={(event) => {
+  setTitle(event.target.value);
+  setHasEditedDocument(true);
+  setSaveStatus("Unsaved changes");
+}}
             aria-label="Document title"
             placeholder="Untitled document"
             maxLength={200}
@@ -1929,6 +2191,50 @@ useEffect(() => {
           </div>
         </div>
       )}
+
+      {showUnsavedModal && (
+  <div className="nova-unsaved-overlay">
+    <div
+      className="nova-unsaved-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="nova-unsaved-title"
+    >
+      <div className="nova-unsaved-icon">
+        <AlertCircle size={24} />
+      </div>
+
+      <h2 id="nova-unsaved-title">Leave without saving?</h2>
+
+      <p>
+        You have unsaved changes. If you leave now, your latest
+        changes won't be permanently saved.
+      </p>
+
+      <div className="nova-unsaved-actions">
+        <button
+          type="button"
+          className="nova-unsaved-stay"
+          onClick={() => {
+  setShowUnsavedModal(false);
+  setPendingNavigation(null);
+  blockedNavigation?.reset();
+}}
+        >
+          Keep editing
+        </button>
+
+        <button
+          type="button"
+          className="nova-unsaved-leave"
+          onClick={confirmLeaveWithoutSaving}
+        >
+          Leave without saving
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
     </main>
   );

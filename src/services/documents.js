@@ -89,6 +89,19 @@ export async function getUserDocuments(userId) {
   return data ?? [];
 }
 
+// Get the most recent documents for NOVA Office.
+export async function getRecentUserDocuments(userId, limit = 10) {
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id, title, updated_at, source_file_id, output_file_id")
+    .eq("owner_id", userId)
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
 // Delete a document.
 export async function deleteDocument(documentId) {
   const { error } = await supabase
