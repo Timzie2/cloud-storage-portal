@@ -612,11 +612,10 @@ const handlePageDrop = (targetPage, sourcePage = draggedPage) => {
   setDraggedPage(null);
 };
 
-
-
-
 const handleThumbnailPointerDown = (event, page) => {
   if (event.pointerType !== "touch") return;
+
+  setDraggedPage(page);
 
   event.preventDefault();
 
@@ -639,10 +638,31 @@ const handleThumbnailPointerMove = (event) => {
 
   event.preventDefault();
 
-  const element = document.elementFromPoint(
-    event.clientX,
-    event.clientY
-  );
+event.preventDefault();
+
+// Automatically scroll the thumbnail strip horizontally
+const sidebar = event.currentTarget.closest(".pdf-thumbnails");
+
+if (sidebar) {
+  const bounds = sidebar.getBoundingClientRect();
+  const edgeSize = 55;
+  const scrollSpeed = 14;
+
+  // Drag near the right edge
+  if (event.clientX > bounds.right - edgeSize) {
+    sidebar.scrollLeft += scrollSpeed;
+  }
+
+  // Drag near the left edge
+  if (event.clientX < bounds.left + edgeSize) {
+    sidebar.scrollLeft -= scrollSpeed;
+  }
+}
+
+const element = document.elementFromPoint(
+  event.clientX,
+  event.clientY
+);
 
   const thumbnail = element?.closest("[data-pdf-page]");
 
@@ -676,6 +696,7 @@ const handleThumbnailPointerUp = (event) => {
       suppressThumbnailClickRef.current = false;
     });
   }
+  setDraggedPage(null);
 };
 
 
@@ -689,6 +710,7 @@ const handleThumbnailPointerCancel = (event) => {
     fromPage: null,
     targetPage: null,
   };
+  setDraggedPage(null);
 };
 
 
@@ -1568,8 +1590,8 @@ if (!user?.id) {
     onPointerUp={handleThumbnailPointerUp}
     onPointerCancel={handleThumbnailPointerCancel}
     className={`pdf-thumbnail ${
-      pageNumber === page ? "active" : ""
-    }`}
+  pageNumber === page ? "active" : ""
+} ${draggedPage === page ? "dragging" : ""}`}
 onClick={() => {
   if (suppressThumbnailClickRef.current) return;
 
