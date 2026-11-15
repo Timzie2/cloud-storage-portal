@@ -1,0 +1,3434 @@
+
+
+/* =========================================
+
+   NOVA PDF - Main Layout
+
+\========================================= */
+
+
+
+.nova-pdf {
+
+  width: 100%;
+
+  height: 100vh;
+
+  min-height: 100vh;
+
+  display: flex;
+
+  flex-direction: column;
+
+  overflow: hidden;
+
+  background: var(--bg);
+
+  color: var(--text);
+
+  box-sizing: border-box;
+
+}
+
+
+
+.nova-pdf * {
+
+  box-sizing: border-box;
+
+}
+
+
+
+/* =========================================
+
+   Document Header
+
+\========================================= */
+
+
+
+.pdf-header {
+
+  min-height: 78px;
+
+  padding: 0 24px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 20px;
+
+  background: var(--surface);
+
+  border-bottom: 1px solid var(--border);
+
+}
+
+
+
+.pdf-header-left,
+
+.pdf-header-right {
+
+  display: flex;
+
+  align-items: center;
+
+}
+
+
+
+.pdf-header-left {
+
+  min-width: 0;
+
+  gap: 16px;
+
+}
+
+
+
+.pdf-header-right {
+
+  flex-shrink: 0;
+
+  gap: 12px;
+
+}
+
+
+
+.pdf-back-button,
+
+.pdf-more-button {
+
+  width: 40px;
+
+  height: 40px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border: 1px solid var(--border);
+
+  border-radius: 11px;
+
+  background: transparent;
+
+  color: var(--text);
+
+  cursor: pointer;
+
+}
+
+
+
+.pdf-back-button:hover,
+
+.pdf-more-button:hover:not(:disabled) {
+
+  background: var(--surface-hover);
+
+}
+
+
+
+.pdf-office-link {
+
+  padding-right: 18px;
+
+  border-right: 1px solid var(--border);
+
+  color: var(--text);
+
+  font-size: 15px;
+
+  font-weight: 500;
+
+}
+
+
+
+.pdf-header-title {
+
+  min-width: 0;
+
+}
+
+
+
+.pdf-header-title h2 {
+
+  max-width: 420px;
+
+  margin: 0 0 4px;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  font-size: 19px;
+
+  font-weight: 700;
+
+}
+
+
+
+.pdf-header-title span {
+
+  color: var(--text-muted);
+
+  font-size: 12px;
+
+}
+
+
+
+.pdf-collaborators {
+
+  display: flex;
+
+  align-items: center;
+
+  padding-right: 10px;
+
+  border-right: 1px solid var(--border);
+
+}
+
+
+
+.pdf-avatar {
+
+  width: 36px;
+
+  height: 36px;
+
+  margin-left: -8px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border: 2px solid var(--surface);
+
+  border-radius: 50%;
+
+  background: linear-gradient(135deg, #8b5cf6, #22c1dc);
+
+  color: white;
+
+  font-size: 13px;
+
+  font-weight: 700;
+
+}
+
+
+
+.pdf-avatar:first-child {
+
+  margin-left: 0;
+
+}
+
+
+
+.pdf-avatar-alt {
+
+  background: linear-gradient(135deg, #f97316, #7c3aed);
+
+}
+
+
+
+.pdf-avatar-more {
+
+  background: #343746;
+
+  font-size: 11px;
+
+}
+
+
+
+.pdf-header-action {
+
+  height: 43px;
+
+  padding: 0 17px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 9px;
+
+  border: 1px solid var(--border);
+
+  border-radius: 11px;
+
+  background: var(--surface);
+
+  color: var(--text);
+
+  font-size: 13px;
+
+  font-weight: 600;
+
+}
+
+
+
+.pdf-share-button {
+
+  background: linear-gradient(110deg, #8855f5, #6739d4);
+
+  border-color: transparent;
+
+  color: white;
+
+}
+
+
+
+.pdf-header-action:disabled,
+
+.pdf-more-button:disabled {
+
+  opacity: 0.85;
+
+  cursor: not-allowed;
+
+}
+
+
+
+.pdf-comments-button.active {
+
+  border-color: rgba(139, 92, 246, 0.45);
+
+}
+
+
+
+.pdf-comment-count {
+
+  min-width: 21px;
+
+  height: 21px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #8756ed;
+
+  color: white;
+
+  font-size: 11px;
+
+}
+
+
+
+/* =========================================
+
+   Annotation Toolbar
+
+\========================================= */
+
+
+
+.pdf-annotation-toolbar {
+
+  min-height: 68px;
+
+  margin: 12px 16px;
+
+  padding: 8px 12px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+  
+  overflow: visible;
+  position: relative;
+  z-index: 50;
+
+  background: var(--surface);
+
+  border: 1px solid var(--border);
+
+  border-radius: 15px;
+
+  scrollbar-width: thin;
+
+  scrollbar-color: var(--primary) transparent;
+
+}
+
+
+
+.pdf-tool-group {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 5px;
+
+  flex-shrink: 0;
+
+}
+
+
+
+.pdf-tool-button,
+
+.pdf-zoom-controls button,
+
+.pdf-page-controls button {
+
+  width: 39px;
+
+  height: 39px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  border: 1px solid transparent;
+
+  border-radius: 10px;
+
+  background: transparent;
+
+  color: var(--text);
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+
+}
+
+
+
+.pdf-tool-button:hover,
+
+.pdf-zoom-controls button:hover:not(:disabled),
+
+.pdf-page-controls button:hover:not(:disabled) {
+
+  background: var(--surface-hover);
+
+}
+
+
+
+.pdf-tool-button.active {
+
+  border-color: var(--primary);
+
+  background: rgba(139, 92, 246, 0.15);
+
+  color: #a78bfa;
+
+}
+
+
+
+.pdf-tool-divider {
+
+  width: 1px;
+
+  height: 32px;
+
+  flex-shrink: 0;
+
+  background: var(--border);
+
+  margin: 0 5px;
+
+}
+
+
+
+.pdf-color-picker {
+
+  width: 49px;
+
+  height: 39px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  position: relative;
+
+  border: 1px solid var(--border);
+
+  border-radius: 10px;
+
+  cursor: pointer;
+
+}
+
+
+
+.pdf-color-preview {
+
+  width: 20px;
+
+  height: 20px;
+
+  border: 2px solid rgba(255, 255, 255, 0.5);
+
+  border-radius: 50%;
+
+}
+
+
+
+.pdf-color-picker input {
+
+  position: absolute;
+
+  inset: 0;
+
+  width: 100%;
+
+  height: 100%;
+
+  opacity: 0;
+
+  cursor: pointer;
+
+}
+
+
+
+.pdf-stroke-select {
+
+  height: 39px;
+
+  padding: 0 10px;
+
+  border: 1px solid var(--border);
+
+  border-radius: 10px;
+
+  background: var(--surface);
+
+  color: var(--text);
+
+  font-size: 12px;
+
+  outline: none;
+
+  cursor: pointer;
+
+}
+
+
+
+.pdf-zoom-controls,
+
+.pdf-page-controls {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  flex-shrink: 0;
+
+}
+
+
+
+.pdf-zoom-controls span,
+
+.pdf-page-controls span {
+
+  min-width: 48px;
+
+  text-align: center;
+
+  color: var(--text);
+
+  font-size: 13px;
+
+  white-space: nowrap;
+
+}
+
+
+
+.pdf-zoom-controls button:disabled,
+
+.pdf-page-controls button:disabled {
+
+  opacity: 0.35;
+
+  cursor: not-allowed;
+
+}
+
+
+
+/* =========================================
+
+   PDF Workspace
+
+\========================================= */
+
+
+
+.pdf-workspace {
+
+  flex: 1;
+
+  min-height: 0;
+
+  display: grid;
+
+  grid-template-columns: 190px minmax(0, 1fr) 320px;
+
+  overflow: hidden;
+
+  position: relative;
+
+}
+
+
+
+.pdf-workspace.pdf-comments-hidden {
+
+  grid-template-columns: 168px minmax(0, 1fr);
+
+}
+
+
+
+/* React PDF Document wrapper */
+
+.pdf-workspace > .react-pdf__Document {
+
+  display: contents;
+
+}
+
+
+
+/* =========================================
+
+   Left Page Thumbnails
+
+\========================================= */
+
+
+
+.pdf-thumbnails {
+
+  min-width: 0;
+
+  padding: 18px 12px;
+
+  overflow-y: auto;
+
+  background: var(--surface);
+
+  border-right: 1px solid var(--border);
+
+  scrollbar-width: thin;
+
+}
+
+
+
+.pdf-thumbnails h3 {
+
+  margin: 2px 0 18px;
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+}
+
+
+
+.pdf-thumbnail {
+
+  width: 100%;
+
+  margin-bottom: 14px;
+
+  padding: 10px 8px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  gap: 9px;
+
+  border: 1px solid transparent;
+
+  border-radius: 12px;
+
+  background: transparent;
+
+  color: var(--text-muted);
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+
+}
+
+
+
+.pdf-thumbnail:hover {
+
+  background: var(--surface-hover);
+
+}
+
+
+
+.pdf-thumbnail.active {
+
+  border-color: var(--primary);
+
+  background: rgba(139, 92, 246, 0.1);
+
+  color: #a78bfa;
+
+}
+
+
+
+.pdf-thumbnail .react-pdf__Page {
+
+  max-width: 100%;
+
+  overflow: hidden;
+
+  background: white;
+
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
+
+}
+
+
+
+.pdf-thumbnail canvas {
+
+  display: block;
+
+  max-width: 100%;
+
+  height: auto !important;
+
+}
+
+
+
+.pdf-thumbnail span {
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+}
+
+
+
+/* =========================================
+
+   Main PDF Page
+
+\========================================= */
+
+
+
+.pdf-main-page {
+
+  min-width: 0;
+
+  min-height: 0;
+
+  padding: 20px;
+
+  overflow: auto;
+
+  display: flex;
+
+  justify-content: center;
+
+  align-items: flex-start;
+
+  background: var(--bg);
+
+  scrollbar-width: thin;
+
+}
+
+
+
+.pdf-main-page .react-pdf__Page {
+
+  max-width: 100%;
+
+  flex-shrink: 0;
+
+  background: white;
+
+  box-shadow: 0 5px 25px rgba(0, 0, 0, 0.25);
+
+}
+
+
+
+.pdf-main-page canvas {
+
+  display: block;
+
+  max-width: 100%;
+
+  height: auto !important;
+
+}
+
+
+
+.pdf-main-page .react-pdf__Page__textContent {
+
+  user-select: text;
+
+}
+
+
+
+.pdf-loading {
+
+  padding: 30px;
+
+  color: var(--text-muted);
+
+  text-align: center;
+
+}
+
+
+
+/* =========================================
+
+   Right Comments Panel
+
+\========================================= */
+
+
+
+.pdf-comments-panel {
+
+  min-width: 0;
+
+  min-height: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  overflow: hidden;
+
+  background: var(--surface);
+
+  border-left: 1px solid var(--border);
+
+}
+
+
+
+.pdf-comments-heading {
+
+  min-height: 58px;
+
+  padding: 0 16px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  border-bottom: 1px solid var(--border);
+
+}
+
+
+
+.pdf-comments-heading h3 {
+
+  margin: 0;
+
+  font-size: 15px;
+
+  font-weight: 700;
+
+}
+
+
+
+.pdf-comments-heading button,
+
+.pdf-comment-more {
+
+  width: 32px;
+
+  height: 32px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: transparent;
+
+  color: var(--text-muted);
+
+}
+
+
+
+.pdf-comments-list {
+
+  flex: 1;
+
+  padding: 12px;
+
+  overflow-y: auto;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 12px;
+
+}
+
+
+
+.pdf-comment-card {
+
+  padding: 13px;
+
+  border: 1px solid var(--border);
+
+  border-radius: 13px;
+
+  background: var(--bg);
+
+}
+
+
+
+.pdf-comment-top {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+}
+
+
+
+.pdf-comment-avatar {
+
+  width: 36px;
+
+  height: 36px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: linear-gradient(135deg, #8b5cf6, #5b4bd8);
+
+  color: white;
+
+  font-size: 13px;
+
+  font-weight: 700;
+
+}
+
+
+
+.avatar-a {
+
+  background: linear-gradient(135deg, #9b6af8, #6d45d9);
+
+}
+
+
+
+.avatar-t {
+
+  background: linear-gradient(135deg, #fb923c, #ea580c);
+
+}
+
+
+
+.pdf-comment-author {
+
+  min-width: 0;
+
+  flex: 1;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 3px;
+
+}
+
+
+
+.pdf-comment-author strong {
+
+  font-size: 12px;
+
+}
+
+
+
+.pdf-comment-author span {
+
+  color: var(--text-muted);
+
+  font-size: 11px;
+
+}
+
+
+
+.pdf-comment-card p {
+
+  margin: 13px 0 10px 46px;
+
+  font-size: 12px;
+
+  line-height: 1.55;
+
+  overflow-wrap: anywhere;
+
+}
+
+
+
+.pdf-comment-reply {
+
+  margin-left: 46px;
+
+  padding: 3px 0;
+
+  border: none;
+
+  background: transparent;
+
+  color: #a78bfa;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  cursor: not-allowed;
+
+  opacity: 0.85;
+
+}
+
+
+
+.pdf-comment-resolved {
+
+  color: #34d399;
+
+  flex-shrink: 0;
+
+}
+
+
+
+.pdf-comment-more {
+
+  flex-shrink: 0;
+
+}
+
+
+
+/* =========================================
+
+   Empty State
+
+\========================================= */
+
+
+
+.pdf-empty-state {
+
+  flex: 1;
+
+  min-height: 0;
+
+  width: 100%;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding: 30px 20px;
+
+  text-align: center;
+
+}
+
+
+
+.pdf-empty-icon {
+
+  width: 82px;
+
+  height: 82px;
+
+  margin-bottom: 20px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border-radius: 22px;
+
+  background: var(--surface);
+
+  color: #9562ff;
+
+}
+
+
+
+.pdf-empty-state h2 {
+
+  margin: 0 0 8px;
+
+  font-size: 23px;
+
+}
+
+
+
+.pdf-empty-state p {
+
+  color: var(--text-muted);
+
+  font-size: 14px;
+
+}
+
+
+
+.pdf-empty-upload {
+
+  margin-top: 15px;
+
+  padding: 12px 19px;
+
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 9px;
+
+  border-radius: 10px;
+
+  background: linear-gradient(110deg, #8b5cf6, #6739d4);
+
+  color: white;
+
+  font-size: 13px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+
+}
+
+
+
+.pdf-empty-upload:hover {
+
+  filter: brightness(1.1);
+
+}
+
+
+
+.pdf-error {
+
+  color: #ef6464;
+
+  font-size: 13px;
+
+  text-align: center;
+
+}
+
+
+
+
+
+/* =========================================
+
+   Responsive Layout
+
+\========================================= */
+
+
+
+@media (max-width: 1100px) {
+
+  .pdf-workspace {
+
+    grid-template-columns: 145px minmax(0, 1fr) 255px;
+
+  }
+
+
+
+  .pdf-workspace.pdf-comments-hidden {
+
+    grid-template-columns: 145px minmax(0, 1fr);
+
+  }
+
+
+
+  .pdf-header {
+
+    padding: 0 16px;
+
+  }
+
+
+
+  .pdf-header-title h2 {
+
+    max-width: 260px;
+
+  }
+
+
+
+  .pdf-header-right {
+
+    gap: 7px;
+
+  }
+
+}
+
+
+
+/* Tablet */
+
+@media (max-width: 800px) {
+
+  .pdf-header {
+
+    min-height: 68px;
+
+    padding: 0 12px;
+
+    gap: 8px;
+
+  }
+
+
+
+.pdf-office-link {
+
+  display: none;
+
+}
+
+
+
+.pdf-collaborators {
+
+  display: flex;
+
+  padding-right: 5px;
+
+  border-right: none;
+
+  gap: 0;
+
+}
+
+
+
+.pdf-avatar {
+
+  width: 27px;
+
+  height: 27px;
+
+  margin-left: -7px;
+
+  font-size: 10px;
+
+}
+
+
+
+.pdf-avatar:first-child {
+
+  margin-left: 0;
+
+}
+
+
+
+.pdf-avatar:nth-child(2) {
+
+  display: none;
+
+}
+
+
+
+.pdf-avatar-more {
+
+  display: flex;
+
+}
+
+
+
+.pdf-share-button {
+
+  display: flex;
+
+  width: 36px;
+
+  height: 36px;
+
+  padding: 0;
+
+  font-size: 0;
+
+  gap: 0;
+
+}
+
+
+
+  .pdf-header-title {
+
+    flex: 1;
+
+    min-width: 0;
+
+  }
+
+
+
+  .pdf-header-title h2 {
+
+    max-width: 100%;
+
+    font-size: 15px;
+
+  }
+
+
+
+  .pdf-header-right {
+
+    flex-shrink: 0;
+
+    gap: 7px;
+
+  }
+
+
+
+  .pdf-workspace,
+
+  .pdf-workspace.pdf-comments-hidden {
+
+    grid-template-columns: minmax(0, 1fr);
+
+    grid-template-rows: 88px minmax(0, 1fr);
+
+  }
+
+
+
+  /* Horizontal page thumbnail strip */
+
+  .pdf-thumbnails {
+
+    grid-row: 1;
+
+    grid-column: 1;
+
+    min-width: 0;
+
+    min-height: 0;
+
+    height: 88px;
+
+    padding: 7px 12px;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    overflow-x: auto;
+
+    overflow-y: hidden;
+
+    border-right: none;
+
+    border-bottom: 1px solid var(--border);
+
+  }
+
+
+
+  .pdf-thumbnails h3 {
+
+    flex-shrink: 0;
+
+    margin: 0 5px 0 0;
+
+    font-size: 12px;
+
+  }
+
+
+
+  .pdf-thumbnail {
+
+    flex: 0 0 58px;
+
+    width: 58px;
+
+    height: 70px;
+
+    margin: 0;
+
+    padding: 4px;
+
+    gap: 3px;
+
+  }
+
+
+
+  .pdf-thumbnail .react-pdf__Page {
+
+    max-height: 48px;
+
+    overflow: hidden;
+
+  }
+
+
+
+  .pdf-thumbnail canvas {
+
+    max-height: 48px;
+
+    width: auto !important;
+
+    height: auto !important;
+
+  }
+
+
+
+  .pdf-thumbnail span {
+
+    font-size: 9px;
+
+  }
+
+
+
+  /* Main PDF viewing area */
+
+  .pdf-main-page {
+
+    grid-row: 2;
+
+    grid-column: 1;
+
+    min-width: 0;
+
+    min-height: 0;
+
+    padding: 12px;
+
+    overflow: auto;
+
+  }
+
+
+
+  .pdf-main-page .react-pdf__Page {
+
+    max-width: 100%;
+
+  }
+
+
+
+  .pdf-main-page canvas {
+
+    max-width: 100%;
+
+    height: auto !important;
+
+  }
+
+
+
+  /* Comments drawer */
+
+  .pdf-comments-panel {
+
+    position: absolute;
+
+    z-index: 30;
+
+    top: 0;
+
+    right: 0;
+
+    bottom: 0;
+
+    width: min(340px, 88vw);
+
+    box-shadow: -8px 0 25px rgba(0, 0, 0, 0.25);
+
+  }
+
+
+
+  /* Scrollable annotation toolbar */
+
+  .pdf-annotation-toolbar {
+
+    min-height: 58px;
+
+    margin: 8px;
+
+    padding: 6px 8px;
+
+    gap: 7px;
+    
+    overflow: visible;
+    position: relative;
+    z-index: 50;
+
+  }
+
+
+
+  .pdf-tool-group {
+
+    flex-shrink: 0;
+
+  }
+
+
+
+  .pdf-tool-button {
+
+    flex: 0 0 36px;
+
+    width: 36px;
+
+    height: 36px;
+
+  }
+
+}
+
+
+
+/* Mobile */
+
+@media (max-width: 500px) {
+
+  .pdf-header {
+
+    min-height: 64px;
+
+    padding: 0 9px;
+
+    gap: 7px;
+
+  }
+
+
+
+  .pdf-back-button {
+
+    flex: 0 0 36px;
+
+    width: 36px;
+
+    height: 36px;
+
+  }
+
+
+
+  .pdf-header-title h2 {
+
+    max-width: 100%;
+
+    font-size: 13px;
+
+  }
+
+
+
+  .pdf-header-title span {
+
+    font-size: 10px;
+
+  }
+
+
+
+  .pdf-header-right {
+
+    gap: 5px;
+
+  }
+
+
+
+.pdf-comments-button {
+
+  position: relative;
+
+  width: 36px;
+
+  min-width: 36px;
+
+  height: 36px;
+
+  padding: 0;
+
+  justify-content: center;
+
+  font-size: 0;
+
+  gap: 0;
+
+}
+
+
+
+.pdf-comments-button svg {
+
+  width: 18px;
+
+  height: 18px;
+
+}
+
+
+
+.pdf-comment-count {
+
+  position: absolute;
+
+  top: -5px;
+
+  right: -5px;
+
+  width: 17px;
+
+  height: 17px;
+
+  font-size: 9px;
+
+}
+
+
+
+  .pdf-comment-count {
+
+    width: 18px;
+
+    height: 18px;
+
+    font-size: 9px;
+
+  }
+
+
+
+  .pdf-more-button {
+
+    flex: 0 0 34px;
+
+    width: 34px;
+
+    height: 34px;
+
+  }
+
+
+
+  .pdf-annotation-toolbar {
+
+    min-height: 54px;
+
+    margin: 6px;
+
+    padding: 5px 7px;
+
+    gap: 5px;
+
+  }
+
+
+
+  .pdf-tool-button {
+
+    flex: 0 0 34px;
+
+    width: 34px;
+
+    height: 34px;
+
+  }
+
+
+
+  .pdf-tool-button svg {
+
+    width: 18px;
+
+    height: 18px;
+
+  }
+
+
+
+  .pdf-tool-divider {
+
+    height: 28px;
+
+    margin: 0 2px;
+
+  }
+
+
+
+  .pdf-workspace,
+
+  .pdf-workspace.pdf-comments-hidden {
+
+    grid-template-columns: minmax(0, 1fr);
+
+    grid-template-rows: 82px minmax(0, 1fr);
+
+  }
+
+
+
+  .pdf-thumbnails {
+
+    height: 82px;
+
+    padding: 6px 9px;
+
+    gap: 8px;
+
+  }
+
+
+
+  .pdf-thumbnail {
+
+    flex-basis: 54px;
+
+    width: 54px;
+
+    height: 66px;
+
+  }
+
+
+
+  .pdf-main-page {
+
+    padding: 8px;
+
+    align-items: flex-start;
+
+    justify-content: center;
+
+  }
+
+
+
+  .pdf-main-page .react-pdf__Page {
+
+    max-width: 100%;
+
+    flex-shrink: 1;
+
+  }
+
+
+
+  .pdf-main-page canvas {
+
+    max-width: 100%;
+
+    height: auto !important;
+
+  }
+
+
+
+  .pdf-comments-panel {
+
+    width: min(320px, 90vw);
+
+  }
+
+}
+
+
+
+
+
+
+
+/* PDF Loading Screen */
+
+.pdf-loading-screen {
+
+  flex: 1;
+
+  min-height: 0;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding: 30px;
+
+  background: var(--bg);
+
+  color: var(--text);
+
+  position: absolute;
+
+  inset: 0;
+
+  z-index: 20;
+
+  transition:
+
+    background-color 0.25s ease,
+
+    color 0.25s ease;
+
+}
+
+
+
+.pdf-loading-content {
+
+  width: 100%;
+
+  max-width: 380px;
+
+  text-align: center;
+
+}
+
+
+
+.pdf-loading-icon {
+
+  width: 82px;
+
+  height: 82px;
+
+  margin: 0 auto 26px;
+
+  border-radius: 24px;
+
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+
+  color: var(--primary);
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  position: relative;
+
+}
+
+
+
+.pdf-loading-spinner {
+
+  position: absolute;
+
+  inset: -7px;
+
+  border: 3px solid transparent;
+
+  border-top-color: var(--primary);
+
+  border-right-color: var(--accent);
+
+  border-radius: 50%;
+
+  animation: novaPdfSpin 1s linear infinite;
+
+}
+
+
+
+.pdf-loading-content h2 {
+
+  color: var(--text);
+
+  font-size: 24px;
+
+  margin-bottom: 10px;
+
+}
+
+
+
+.pdf-loading-content p {
+
+  color: var(--text-muted);
+
+  font-size: 14px;
+
+  overflow-wrap: anywhere;
+
+}
+
+
+
+.pdf-loading-progress {
+
+  height: 5px;
+
+  width: 100%;
+
+  background: var(--border);
+
+  border-radius: 20px;
+
+  overflow: hidden;
+
+  margin: 28px 0 18px;
+
+}
+
+
+
+.pdf-loading-progress span {
+
+  display: block;
+
+  width: 35%;
+
+  height: 100%;
+
+  border-radius: inherit;
+
+  background: var(--gradient);
+
+  animation: novaPdfProgress 1.5s ease-in-out infinite;
+
+}
+
+
+
+.pdf-loading-content small {
+
+  color: var(--text-muted);
+
+  font-size: 12px;
+
+}
+
+
+
+@keyframes novaPdfSpin {
+
+  to {
+
+    transform: rotate(360deg);
+
+  }
+
+}
+
+
+
+@keyframes novaPdfProgress {
+
+  0% {
+
+    transform: translateX(-110%);
+
+  }
+
+  100% {
+
+    transform: translateX(310%);
+
+  }
+
+}
+
+
+
+
+
+/* PDF Zoom Mode Selector */
+
+.pdf-zoom-mode {
+
+  min-width: 125px;
+
+  height: 42px;
+
+  padding: 0 30px 0 12px;
+
+  border: 1px solid var(--border);
+
+  border-radius: var(--radius-md);
+
+  background: var(--surface);
+
+  color: var(--text);
+
+  font-family: inherit;
+
+  font-size: 12px;
+
+  font-weight: 500;
+
+  cursor: pointer;
+
+  outline: none;
+
+  transition: border-color 0.2s ease;
+
+}
+
+
+
+.pdf-zoom-mode:hover,
+
+.pdf-zoom-mode:focus {
+
+  border-color: var(--primary);
+
+}
+
+
+
+.pdf-zoom-mode option {
+
+  background: var(--surface);
+
+  color: var(--text);
+
+}
+
+
+
+@media (max-width: 800px) {
+
+  .pdf-zoom-mode {
+
+    min-width: 110px;
+
+    height: 36px;
+
+    font-size: 11px;
+
+    padding-left: 8px;
+
+  }
+
+}
+
+
+
+@media (max-width: 500px) {
+
+  .pdf-zoom-mode {
+
+    min-width: 100px;
+
+    max-width: 110px;
+
+    height: 34px;
+
+    font-size: 10px;
+
+  }
+
+}
+
+
+
+/* PDF More Options Menu */
+
+.pdf-more-wrapper {
+
+  position: relative;
+
+}
+
+
+
+.pdf-more-menu {
+
+  position: absolute;
+
+  top: calc(100% + 10px);
+
+  right: 0;
+
+  min-width: 190px;
+
+  padding: 6px;
+
+  background: var(--surface);
+
+  border: 1px solid var(--border);
+
+  border-radius: 12px;
+
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+
+  z-index: 100;
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 3px;
+
+}
+
+
+
+.pdf-more-menu button {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 11px;
+
+  width: 100%;
+
+  padding: 11px 12px;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background: transparent;
+
+  color: var(--text);
+
+  font-family: inherit;
+
+  font-size: 13px;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  transition: background 0.2s ease;
+
+}
+
+
+
+.pdf-more-menu button:hover {
+
+  background: var(--bg);
+
+  color: var(--primary);
+
+}
+
+
+
+.pdf-more-menu button svg {
+
+  flex-shrink: 0;
+
+}
+
+
+
+/* PDF Annotation Layer */
+
+.pdf-page-container {
+
+  position: relative;
+
+  width: fit-content;
+
+  height: fit-content;
+
+  margin: 0 auto;
+
+}
+
+
+
+.pdf-annotation-layer {
+
+  position: absolute;
+
+  inset: 0;
+
+  pointer-events: none;
+
+  z-index: 5;
+
+}
+
+
+
+.pdf-text-annotation {
+
+  position: absolute;
+
+  pointer-events: none;
+
+  box-sizing: border-box;
+
+}
+
+
+
+.pdf-text-annotation.highlight {
+
+  border-radius: 2px;
+
+  mix-blend-mode: multiply;
+
+}
+
+
+
+.pdf-text-annotation.underline {
+
+  border-radius: 0;
+
+}
+
+
+
+.pdf-text-annotation.strike {
+
+  border-radius: 0;
+
+}
+
+
+/* NOVA PDF annotation workspace improvements */
+.pdf-page-container {
+  position: relative;
+  display: block;
+  width: max-content;
+  height: max-content;
+  margin: 0 auto;
+  line-height: 0;
+}
+
+.pdf-page-container > .react-pdf__Page {
+  position: relative;
+  display: block;
+  margin: 0;
+}
+
+.pdf-page-container > .react-pdf__Page canvas {
+  display: block;
+}
+
+.pdf-page-container .react-pdf__Page__textContent,
+.pdf-page-container .react-pdf__Page__annotations {
+  line-height: initial;
+}
+
+.pdf-annotation-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+}
+
+.pdf-annotation-layer.interactive {
+  pointer-events: all;
+  cursor: crosshair;
+}
+
+.pdf-history-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pdf-history-controls button {
+  width: 34px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pdf-history-controls button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.pdf-history-controls button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pdf-comment-form {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.pdf-comment-form textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.pdf-comment-form button {
+  align-self: flex-end;
+  padding: 8px 13px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--primary);
+  color: white;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pdf-comment-form button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 800px) {
+  .pdf-history-controls button {
+    width: 32px;
+    height: 34px;
+  }
+}
+
+
+/* NOVA PDF annotation workspace improvements */
+.pdf-page-container {
+  position: relative;
+  display: block;
+  width: max-content;
+  height: max-content;
+  margin: 0 auto;
+  line-height: 0;
+}
+
+.pdf-page-container > .react-pdf__Page {
+  position: relative;
+  display: block;
+  margin: 0;
+}
+
+.pdf-page-container > .react-pdf__Page canvas {
+  display: block;
+}
+
+.pdf-page-container .react-pdf__Page__textContent,
+.pdf-page-container .react-pdf__Page__annotations {
+  line-height: initial;
+}
+
+.pdf-annotation-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+}
+
+.pdf-annotation-layer.interactive {
+  pointer-events: all;
+  cursor: crosshair;
+}
+
+.pdf-history-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pdf-history-controls button {
+  width: 34px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pdf-history-controls button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.pdf-history-controls button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pdf-comment-form {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.pdf-comment-form textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.pdf-comment-form button {
+  align-self: flex-end;
+  padding: 8px 13px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--primary);
+  color: white;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pdf-comment-form button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 800px) {
+  .pdf-history-controls button {
+    width: 32px;
+    height: 34px;
+  }
+}
+
+/* Fix PDF annotation alignment at high zoom levels */
+.pdf-main-page .react-pdf__Page {
+  max-width: none !important;
+  flex-shrink: 0 !important;
+}
+
+.pdf-main-page .react-pdf__Page canvas {
+  max-width: none !important;
+}
+
+.pdf-page-container {
+  width: max-content;
+  height: max-content;
+  flex-shrink: 0;
+}
+
+.pdf-color-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pdf-color-trigger {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.pdf-color-trigger:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary);
+}
+
+.pdf-color-preview {
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.pdf-color-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  width: 245px;
+  padding: 16px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.16);
+  z-index: 100;
+}
+
+.pdf-color-popover strong {
+  display: block;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.pdf-color-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+.pdf-color-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid #ddd;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.pdf-color-swatch:hover {
+  transform: scale(1.15);
+}
+
+.pdf-color-swatch.selected {
+  outline: 2px solid #7c3aed;
+  outline-offset: 3px;
+}
+
+.pdf-custom-color {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  margin-top: 16px;
+  padding-top: 13px;
+  font-size: 12px;
+}
+
+.pdf-custom-color input {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pdf-custom-color span {
+  font-size: 11px;
+  color: var(--text-secondary, #777);
+}
+
+/* NOVA PDF colour palette visibility fix */
+.pdf-color-wrapper {
+  position: relative;
+  z-index: 1000;
+  flex-shrink: 0;
+}
+
+.pdf-color-trigger {
+  position: relative;
+  z-index: 1001;
+  cursor: pointer;
+}
+
+.pdf-color-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  z-index: 9999;
+  display: block;
+  width: 245px;
+  max-width: min(245px, 85vw);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.2);
+}
+
+/* Selected colour checkmark */
+.pdf-color-swatch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pdf-color-swatch.selected {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.pdf-color-check {
+  color: #fff;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+
+/* NOVA PDF - Horizontal and vertical scrolling at high zoom */
+.pdf-main-page {
+  min-width: 0;
+  min-height: 0;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+
+  display: flex;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+
+  scroll-behavior: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Keep the PDF at its actual zoom dimensions */
+.pdf-main-page .react-pdf__Page {
+  max-width: none !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+}
+
+/* Prevent the canvas from being squeezed */
+.pdf-main-page .react-pdf__Page canvas {
+  max-width: none !important;
+  height: auto !important;
+}
+
+/* Keep annotation layers aligned with the PDF */
+.pdf-page-container {
+  width: max-content;
+  height: max-content;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+
+/* NOVA PDF toolbar horizontal scrolling */
+.pdf-annotation-toolbar {
+  width: auto;
+  max-width: calc(100% - 16px);
+  min-width: 0;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pdf-tool-group,
+.pdf-zoom-controls,
+.pdf-color-wrapper,
+.pdf-stroke-select {
+  flex-shrink: 0;
+}
+
+/* Visible scrollbar for Chrome and Edge */
+.pdf-annotation-toolbar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.pdf-annotation-toolbar::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 10px;
+}
+
+.pdf-annotation-toolbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* NOVA PDF colour palette portal */
+.pdf-color-popover {
+  width: 245px;
+  max-width: min(245px, 85vw);
+  padding: 16px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.2);
+}
+
+
+/* PDF filename and rename controls */
+.pdf-header-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+}
+
+.pdf-header-title h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 23px;
+  font-weight: 700;
+  color: var(--text-primary, #171717);
+  cursor: text;
+  border-radius: 6px;
+  transition: color 0.2s ease;
+}
+
+.pdf-header-title h2:hover {
+  color: #7045e8;
+}
+
+.pdf-header-title h2 svg {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.pdf-header-title h2:hover svg {
+  opacity: 1;
+}
+
+.pdf-header-title > span {
+  font-size: 14px;
+  color: var(--text-secondary, #777);
+}
+
+/* Rename editing row */
+.pdf-rename-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pdf-rename-controls input {
+  width: min(340px, 45vw);
+  min-width: 160px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #d8d2e8;
+  border-radius: 9px;
+  outline: none;
+  background: var(--surface-primary, #fff);
+  color: var(--text-primary, #171717);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pdf-rename-controls input:focus {
+  border-color: #8050ed;
+  box-shadow: 0 0 0 3px rgba(128, 80, 237, 0.12);
+}
+
+.pdf-rename-controls button {
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.pdf-rename-controls button:first-of-type {
+  background: linear-gradient(135deg, #7445ed, #287fc4);
+  color: #fff;
+}
+
+.pdf-rename-controls button:first-of-type:hover {
+  opacity: 0.9;
+}
+
+.pdf-rename-controls button:last-of-type {
+  background: var(--surface-secondary, #f2f2f5);
+  border-color: var(--border-color, #e5e5e5);
+  color: var(--text-primary, #333);
+}
+
+.pdf-rename-controls button:last-of-type:hover {
+  background: var(--surface-hover, #e9e7ef);
+}
+
+.pdf-rename-controls button:disabled,
+.pdf-rename-controls input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Mobile layout */
+@media (max-width: 600px) {
+  .pdf-header-title h2 {
+    font-size: 17px;
+    max-width: 220px;
+    overflow-wrap: anywhere;
+  }
+
+  .pdf-rename-controls {
+    gap: 5px;
+  }
+
+  .pdf-rename-controls input {
+    width: 100%;
+    max-width: 230px;
+    font-size: 14px;
+  }
+
+  .pdf-rename-controls button {
+    height: 34px;
+    padding: 0 10px;
+  }
+}
+
+
+
+/* PDF Rename Input - Light and Dark Mode */
+
+.pdf-rename-input-wrapper {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  width: min(340px, 45vw);
+  min-width: 160px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.pdf-rename-input-wrapper:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(128, 80, 237, 0.14);
+}
+
+.pdf-rename-input-wrapper input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 10px 0 12px;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pdf-rename-input-wrapper input:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.pdf-rename-input-wrapper input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pdf-rename-extension {
+  flex-shrink: 0;
+  height: 100%;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  user-select: none;
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .pdf-rename-input-wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: 38px;
+  }
+
+  .pdf-rename-input-wrapper input {
+    font-size: 14px;
+  }
+
+  .pdf-rename-extension {
+    padding: 0 10px;
+    font-size: 13px;
+  }
+}
+
+
+/* =========================================
+   NOVA PDF - Improved Mobile Experience
+========================================= */
+
+@media (max-width: 600px) {
+
+  /* Main app */
+  .nova-pdf {
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .pdf-header {
+    min-height: 0;
+    padding: 10px 9px;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .pdf-header-left {
+    flex: 1;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .pdf-back-button {
+    width: 35px;
+    height: 35px;
+    flex: 0 0 35px;
+  }
+
+  .pdf-header-title {
+    flex: 1;
+    min-width: 0;
+    gap: 3px;
+  }
+
+  .pdf-header-title h2 {
+    max-width: 100%;
+    min-width: 0;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pdf-header-title > span {
+    font-size: 10px;
+  }
+
+  .pdf-header-right {
+    flex: 0 0 auto;
+    gap: 5px;
+  }
+
+  .pdf-collaborators {
+    display: none;
+  }
+
+  .pdf-share-button {
+    width: 35px;
+    height: 35px;
+    flex: 0 0 35px;
+  }
+
+  .pdf-comments-button {
+    width: 35px;
+    min-width: 35px;
+    height: 35px;
+  }
+
+  .pdf-more-button {
+    width: 35px;
+    height: 35px;
+  }
+
+  /* Rename controls */
+  .pdf-rename-controls {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .pdf-rename-input-wrapper {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .pdf-rename-input-wrapper input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .pdf-rename-controls button {
+    height: 34px;
+  }
+
+  /* Annotation toolbar */
+  .pdf-annotation-toolbar {
+    width: calc(100% - 12px);
+    max-width: none;
+    min-height: 54px;
+    height: 56px;
+    margin: 6px;
+    padding: 5px 8px;
+    gap: 6px;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    border-radius: 12px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pdf-annotation-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pdf-tool-group,
+  .pdf-zoom-controls,
+  .pdf-history-controls,
+  .pdf-color-wrapper {
+    flex: 0 0 auto;
+  }
+
+  .pdf-tool-button {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+  }
+
+  .pdf-tool-button svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .pdf-color-trigger {
+    width: 36px;
+    height: 36px;
+  }
+
+  .pdf-stroke-select {
+    height: 36px;
+  }
+
+  /* Workspace */
+  .pdf-workspace,
+  .pdf-workspace.pdf-comments-hidden {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 76px minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  /* Horizontal page thumbnails */
+  .pdf-thumbnails {
+    grid-row: 1;
+    grid-column: 1;
+    width: 100%;
+    height: 76px;
+    min-height: 0;
+    padding: 6px 9px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .pdf-thumbnail {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+  .pdf-thumbnails::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pdf-thumbnails h3 {
+    flex: 0 0 auto;
+    margin: 0 3px 0 0;
+    font-size: 11px;
+  }
+
+  .pdf-thumbnail {
+    flex: 0 0 52px;
+    width: 52px;
+    height: 62px;
+    margin: 0;
+    padding: 4px;
+    gap: 3px;
+    border-radius: 8px;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pdf-thumbnail .react-pdf__Page {
+    max-height: 43px;
+    overflow: hidden;
+  }
+
+  .pdf-thumbnail canvas {
+    max-height: 43px;
+    width: auto !important;
+    height: auto !important;
+  }
+
+  .pdf-thumbnail span {
+    font-size: 9px;
+  }
+
+  /* Main PDF viewing area */
+  .pdf-main-page {
+    grid-row: 2;
+    grid-column: 1;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    padding: 10px;
+    overflow: auto !important;
+    display: flex;
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pdf-page-container {
+    flex: 0 0 auto;
+    width: max-content;
+    height: max-content;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .pdf-main-page .react-pdf__Page {
+    max-width: none !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+  }
+
+  .pdf-main-page canvas {
+    max-width: none !important;
+    height: auto !important;
+  }
+
+  /* Comments drawer */
+  .pdf-comments-panel {
+    position: absolute;
+    z-index: 100;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(320px, 88vw);
+    box-shadow: -8px 0 25px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Colour picker */
+  .pdf-color-popover {
+    left: 0;
+    width: 230px;
+    max-width: 85vw;
+  }
+
+}
+
+/* Extra-small phones */
+@media (max-width: 360px) {
+
+  .pdf-header {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .pdf-header-right {
+    gap: 3px;
+  }
+
+  .pdf-header-title h2 {
+    font-size: 12px;
+  }
+
+  .pdf-annotation-toolbar {
+    margin: 4px;
+    width: calc(100% - 8px);
+  }
+
+  .pdf-workspace,
+  .pdf-workspace.pdf-comments-hidden {
+    grid-template-rows: 70px minmax(0, 1fr);
+  }
+
+  .pdf-thumbnails {
+    height: 70px;
+  }
+
+}
+
+
+/* =====================================
+   NOVA PDF - Rename Controls Theme Fix
+===================================== */
+
+/* File name in the header */
+.pdf-header-title h2 {
+  color: var(--text) !important;
+}
+
+.pdf-header-title h2:hover {
+  color: var(--primary) !important;
+}
+
+/* Rename input */
+.pdf-rename-controls input {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 9px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pdf-rename-controls input:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(128, 80, 237, 0.14);
+}
+
+/* Placeholder */
+.pdf-rename-controls input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Save and Cancel buttons */
+.pdf-rename-controls button {
+  font-family: inherit;
+  border-radius: 8px;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+/* Save */
+.pdf-rename-controls button:first-of-type {
+  background: var(--primary);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* Cancel */
+.pdf-rename-controls button:last-of-type {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.pdf-rename-controls button:last-of-type:hover {
+  background: var(--surface-hover);
+}
+
+/* PDF page rotation controls */
+.pdf-page-rotation-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pdf-page-rotation-controls button {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.pdf-page-rotation-controls button:hover {
+  background: var(--surface-hover);
+  color: var(--primary);
+  border-color: var(--primary);
+}

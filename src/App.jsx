@@ -23,6 +23,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import AppLayout from "./components/AppLayout";
 import NovaLoader from "./components/NovaLoader";
 import Office from "./pages/Office";
+import PDF from "./pages/PDF";
 import { NavigationGuardProvider } from "./context/NavigationGuardContext";
 
 import "./styles/theme.css";
@@ -59,6 +60,7 @@ function AppContent() {
           <Route path="/favorites" element={<Favorites />} />
           <Route path="/documents/:documentId" element={<Documents />} />
           <Route path="/office" element={<Office />} />
+          <Route path="/pdf" element={<PDF />} />
         </Routes>
       </AppLayout>
     </NavigationGuardProvider>

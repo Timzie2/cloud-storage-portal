@@ -680,34 +680,67 @@ const clearFolderSelection = () => {
   setSelectedFolderIds([]);
 };
 
-  const handlePreview = async (file) => {
-    try {
-      setOpenMenu(null);
-      setMenuPosition(null);
+const handlePreview = async (file) => {
+  try {
+    setOpenMenu(null);
+    setMenuPosition(null);
 
-      openOverlay("preview", setPreviewFile, file);
-      setPreviewUrl(null);
-      setPreviewLoading(true);
+    // Open PDF files directly in NOVA PDF
+    const isPdf =
+      file.mime_type === "application/pdf" ||
+      file.name?.toLowerCase().endsWith(".pdf");
 
-      const url = await getPreviewUrl(file.storage_path);
+    if (isPdf) {
+      const { data: blob, error } = await supabase.storage
+        .from("user-files")
+        .download(file.storage_path);
 
-      setPreviewUrl(url);
-    } catch (error) {
-      console.error("Preview error:", error);
+      if (error) throw error;
 
-      setPreviewFile(null);
-      setPreviewUrl(null);
+      const pendingPdfFile = new window.File(
+        [blob],
+        file.name,
+        {
+          type: "application/pdf",
+        }
+      );
 
-      alert(
-  error.message?.toLowerCase().includes("expired") ||
-    error.message?.toLowerCase().includes("revoked")
-    ? "This share has expired or been revoked. Ask the owner to share the file again."
-    : "Could not open this file."
-);
-    } finally {
-      setPreviewLoading(false);
+      navigate("/pdf", {
+  state: {
+    from: location.pathname,
+    pendingPdfFile,
+    sourceFileId: file.id,
+    fileName: file.name,
+  },
+});
+
+      return;
     }
-  };
+
+    // Keep the existing preview behaviour for other files
+    setPreviewFile(file);
+    setPreviewUrl(null);
+    setPreviewLoading(true);
+
+    const url = await getPreviewUrl(file.storage_path);
+
+    setPreviewUrl(url);
+  } catch (error) {
+    console.error("Preview error:", error);
+
+    setPreviewFile(null);
+    setPreviewUrl(null);
+
+    alert(
+      error.message?.toLowerCase().includes("expired") ||
+      error.message?.toLowerCase().includes("revoked")
+        ? "This share has expired or been revoked. Ask the owner to share the file again."
+        : error.message || "Could not open this file."
+    );
+  } finally {
+    setPreviewLoading(false);
+  }
+};
 
 const handleShare = (file) => {
   setOpenMenu(null);

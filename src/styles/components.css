@@ -4797,3 +4797,31 @@ html:not(.dark) .share-modal .share-modal-folder-name {
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   NOVA PDF — SIDEBAR LAYOUT
+========================================================= */
+
+.app-layout > .app-main:has(.nova-pdf) {
+  margin-left: 240px;
+  width: calc(100% - 240px);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.app-layout .nova-pdf {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+@media (max-width: 768px) {
+  .app-layout > .app-main:has(.nova-pdf) {
+    margin-left: 0;
+    width: 100%;
+  }
+}

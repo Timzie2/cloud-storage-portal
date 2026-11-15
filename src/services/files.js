@@ -240,6 +240,90 @@ export async function downloadFile(
 }
 
 
+export async function saveNewPdfToMyFiles(
+  userId,
+  updatedBlob,
+  documentTitle
+) {
+  if (!userId || !(updatedBlob instanceof Blob)) {
+    throw new Error("User and a valid PDF file are required.");
+  }
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) throw authError;
+
+  if (!user || user.id !== userId) {
+    throw new Error("You must be signed in to save this PDF.");
+  }
+
+  const contentType = "application/pdf";
+
+  const safeTitle = (documentTitle || "NOVA-document")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "-");
+
+  const fileName = safeTitle.toLowerCase().endsWith(".pdf")
+    ? safeTitle
+    : `${safeTitle}.pdf`;
+
+  const { getStorageQuota } = await import("./storageQuota");
+  const quota = await getStorageQuota(userId);
+
+  if (
+    quota.isFull ||
+    updatedBlob.size > quota.storageLimit - quota.storageUsed
+  ) {
+    throw new Error("Not enough storage space to save this PDF file.");
+  }
+
+  const newFileId = crypto.randomUUID();
+  const newStoragePath = `${userId}/${newFileId}-${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(newStoragePath, updatedBlob, {
+      contentType,
+      upsert: false,
+    });
+
+  if (uploadError) throw uploadError;
+
+  try {
+    const { data: newFile, error: insertError } = await supabase
+      .from("files")
+      .insert({
+        user_id: userId,
+        name: fileName,
+        storage_path: newStoragePath,
+        mime_type: contentType,
+        size_bytes: updatedBlob.size,
+        folder_id: null,
+        is_favorite: false,
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+
+    return newFile;
+  } catch (error) {
+    const { error: cleanupError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([newStoragePath]);
+
+    if (cleanupError) {
+      console.error("Could not clean up failed PDF upload:", cleanupError);
+    }
+
+    throw error;
+  }
+}
+
+
 export async function getPreviewUrl(storagePath) {
   if (!storagePath) {
     throw new Error("Storage path is required.");
@@ -1524,4 +1608,44 @@ export async function saveDocumentDocxOutput(
       documentDocxSaveQueues.delete(documentId);
     }
   }
+}
+
+
+export async function renameFile(fileId, newName) {
+  if (!fileId || !newName?.trim()) {
+    throw new Error("File ID and new filename are required.");
+  }
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) throw authError;
+
+  if (!user) {
+    throw new Error("Please sign in to rename this file.");
+  }
+
+  let safeName = newName.trim().replace(/[\\/:*?"<>|]/g, "-");
+
+  if (!safeName.toLowerCase().endsWith(".pdf")) {
+    safeName += ".pdf";
+  }
+
+  const { data, error } = await supabase
+    .from("files")
+    .update({
+      name: safeName,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", fileId)
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return data;
 }

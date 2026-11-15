@@ -54,7 +54,7 @@ const officeApps = [
     detail: "PDF documents",
     icon: File,
     color: "pdf",
-    status: "Coming soon",
+    status: "Available",
   },
 ];
 
@@ -174,11 +174,19 @@ const formatDocumentDate = (date) => {
   });
 };
 
-  const openApp = (app) => {
+const openApp = (app) => {
   if (app.id === "docs") {
     const newDocumentId = `new-${crypto.randomUUID()}`;
 
     navigate(`/documents/${newDocumentId}`, {
+      state: {
+        from: "/office",
+      },
+    });
+  }
+
+  if (app.id === "pdf") {
+    navigate("/pdf", {
       state: {
         from: "/office",
       },
