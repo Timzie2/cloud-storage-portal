@@ -11,6 +11,7 @@ import CharacterCount from "@tiptap/extension-character-count";
 import { Table } from "@tiptap/extension-table";
 import { TableRow, TableHeader, TableCell } from "@tiptap/extension-table";
 import mammoth from "mammoth";
+import JSZip from "jszip";
 import { TextStyleKit } from "@tiptap/extension-text-style";
 import ColorPicker from "../components/ColorPicker";
 import "../styles/document.css";
@@ -240,6 +241,104 @@ const getImageRun = async (src, requestedWidth = 480) => {
   });
 };
 
+const extractDocxFontRuns = async (arrayBuffer) => {
+  const zip = await JSZip.loadAsync(arrayBuffer);
+  const documentXml = await zip
+    .file("word/document.xml")
+    .async("string");
+
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(
+    documentXml,
+    "application/xml"
+  );
+
+  const wordNamespace =
+    "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+  const runs = Array.from(
+    xml.getElementsByTagNameNS(wordNamespace, "r")
+  );
+
+  return runs
+    .map((run) => {
+      const text = Array.from(
+        run.getElementsByTagNameNS(wordNamespace, "t")
+      )
+        .map((node) => node.textContent)
+        .join("");
+
+      const rPr = run.getElementsByTagNameNS(
+        wordNamespace,
+        "rPr"
+      )[0];
+
+      const rFonts = rPr?.getElementsByTagNameNS(
+        wordNamespace,
+        "rFonts"
+      )[0];
+
+      const fontFamily =
+        rFonts?.getAttributeNS(wordNamespace, "ascii") ||
+        rFonts?.getAttributeNS(wordNamespace, "hAnsi") ||
+        rFonts?.getAttributeNS(wordNamespace, "eastAsia") ||
+        null;
+
+      return {
+        text,
+        fontFamily,
+      };
+    })
+    .filter((run) => run.text.trim());
+};
+
+const restoreDocxFontFormatting = (content, fontRuns) => {
+  let runIndex = 0;
+
+  const restoreNode = (node) => {
+    if (!node) return node;
+
+    if (node.type === "text") {
+      const fontRun = fontRuns[runIndex];
+      runIndex += 1;
+
+      if (!fontRun?.fontFamily) {
+        return node;
+      }
+
+      const existingMarks = node.marks || [];
+
+      const textStyleMark = {
+        type: "textStyle",
+        attrs: {
+          fontFamily: fontRun.fontFamily,
+        },
+      };
+
+      return {
+        ...node,
+        marks: [
+          ...existingMarks.filter(
+            (mark) => mark.type !== "textStyle"
+          ),
+          textStyleMark,
+        ],
+      };
+    }
+
+    if (node.content) {
+      return {
+        ...node,
+        content: node.content.map(restoreNode),
+      };
+    }
+
+    return node;
+  };
+
+  return restoreNode(content);
+};
+
 const getTextRuns = async (nodes = []) => {
   const runs = [];
 
@@ -283,7 +382,14 @@ const getTextRuns = async (nodes = []) => {
         ? { type: "single" }
         : undefined,
       color: cleanColor(textStyle.color),
-      font: textStyle.fontFamily,
+      font: textStyle.fontFamily
+  ? {
+      ascii: textStyle.fontFamily.replace(/['"]/g, ""),
+      hAnsi: textStyle.fontFamily.replace(/['"]/g, ""),
+      eastAsia: textStyle.fontFamily.replace(/['"]/g, ""),
+      cs: textStyle.fontFamily.replace(/['"]/g, ""),
+    }
+  : undefined,
       size: textStyle.fontSize
         ? Math.round(parseFloat(textStyle.fontSize) * 2)
         : undefined,
@@ -790,7 +896,7 @@ async function load() {
       };
 
 let savedSession =
-  documentId === "new" && !pendingDocxFile && temporarySessionKey
+  !pendingDocxFile && temporarySessionKey
     ? sessionStorage.getItem(temporarySessionKey)
     : null;
 
@@ -1088,6 +1194,11 @@ const generateDocxBlob = async () => {
 
   const documentContent = editor.getJSON();
 
+  console.log(
+  "EDITOR CONTENT BEFORE SAVE:",
+  JSON.stringify(documentContent, null, 2)
+);
+
   const doc = new Document({
     sections: [
       {
@@ -1147,6 +1258,7 @@ const handleSaveToMyFiles = async () => {
     } else {
       // Upload embedded Base64 images to permanent storage.
       const currentContent = editor.getJSON();
+      console.log("EDITOR CONTENT BEFORE SAVE:", JSON.stringify(currentContent, null, 2));
 
       const contentWithUploadedImages =
         await uploadEmbeddedImages(
@@ -1233,8 +1345,15 @@ savedVersionRef.current = {
 
 setHasEditedDocument(false);
 
-    if (temporarySessionKey) {
-  sessionStorage.removeItem(temporarySessionKey);
+if (temporarySessionKey) {
+  sessionStorage.setItem(
+    temporarySessionKey,
+    JSON.stringify({
+      title: title.trim() || "Untitled document",
+      content: editor.getJSON(),
+      updatedAt: new Date().toISOString(),
+    })
+  );
 }
 
 setSaveStatus("Saved to My Files");
@@ -1506,7 +1625,24 @@ const handleImportDocx = async (
 
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const result = await mammoth.convertToHtml({ arrayBuffer });
+    const fontRuns = await extractDocxFontRuns(arrayBuffer);
+
+console.log(
+  "EXTRACTED DOCX FONT RUNS:",
+  JSON.stringify(fontRuns, null, 2)
+);
+    const result = await mammoth.convertToHtml(
+  { arrayBuffer },
+  {
+    styleMap: [
+      "r[style-name='Normal'] => p:fresh",
+      "r[style-name='Heading 1'] => h1:fresh",
+      "r[style-name='Heading 2'] => h2:fresh",
+      "r[style-name='Heading 3'] => h3:fresh",
+    ],
+    includeDefaultStyleMap: true,
+  }
+);
 
     if (!result.value.trim()) {
       throw new Error("No readable document content was found in this file.");
@@ -1519,19 +1655,40 @@ const handleImportDocx = async (
 
     // Keep imported images as temporary Base64 data URLs.
     // Do not upload images or save anything permanently.
-    const importedContent = editor.getJSON();
+const importedContent = editor.getJSON();
 
-    editor.commands.setContent(importedContent, {
-      emitUpdate: false,
-    });
+const restoredContent = restoreDocxFontFormatting(
+  importedContent,
+  fontRuns
+);
+
+console.log(
+  "IMPORTED DOCX CONTENT WITH RESTORED FONTS:",
+  JSON.stringify(restoredContent, null, 2)
+);
+
+editor.commands.setContent(restoredContent, {
+  emitUpdate: false,
+});
 
     const importedTitle =
       file.name.replace(/\.docx$/i, "") || "Untitled document";
 
-    setContent(importedContent);
+    setContent(restoredContent);
     setTitle(importedTitle);
     setHasEditedDocument(false);
     setSaveStatus("Imported — temporarily saved");
+
+    if (temporarySessionKey) {
+  sessionStorage.setItem(
+    temporarySessionKey,
+    JSON.stringify({
+      title: importedTitle,
+      content: restoredContent,
+      updatedAt: new Date().toISOString(),
+    })
+  );
+}
 
     if (result.messages?.length) {
       console.info("DOCX import notes:", result.messages);
