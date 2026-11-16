@@ -103,6 +103,7 @@ const [isRenamingSaving, setIsRenamingSaving] = useState(false);
   const [strokeWidth, setStrokeWidth] = useState(3);
   const [annotations, setAnnotations] = useState([]);
   const [selectedText, setSelectedText] = useState("");
+  const [selectionToolbarPosition, setSelectionToolbarPosition] = useState(null);
   const [selectionRects, setSelectionRects] = useState([]);
   const [draftShape, setDraftShape] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
@@ -497,6 +498,7 @@ showPdfNotification(
     if (!selection || !text || !selection.rangeCount) {
       setSelectedText("");
       setSelectionRects([]);
+      setSelectionToolbarPosition(null);
       return;
     }
 
@@ -504,6 +506,19 @@ showPdfNotification(
     if (!pageElement) return;
     const bounds = pageElement.getBoundingClientRect();
     const range = selection.getRangeAt(0);
+
+    const selectionBounds = range.getBoundingClientRect();
+
+setSelectionToolbarPosition({
+  top: Math.max(12, selectionBounds.top - 52),
+  left: Math.max(
+    100,
+    Math.min(
+      selectionBounds.left + selectionBounds.width / 2,
+      window.innerWidth - 100
+    )
+  ),
+});
 
 const rects = Array.from(range.getClientRects())
   .filter((rect) => rect.width > 0 && rect.height > 0)
@@ -594,6 +609,7 @@ const rects = Array.from(range.getClientRects())
     recordAnnotations(next);
     setSelectedText("");
     setSelectionRects([]);
+    setSelectionToolbarPosition(null);
     window.getSelection()?.removeAllRanges();
     setActiveTool(type);
   };
@@ -1457,10 +1473,16 @@ showPdfNotification(
 
     if (item.type === "draw" && item.points?.length) {
       return (
-        <polyline key={item.id}
-          points={item.points.map((p) => `${p.x},${p.y}`).join(" ")}
-          fill="none" stroke={item.color} strokeWidth={Math.max(0.25, item.strokeWidth / 4)}
-          strokeLinecap="round" strokeLinejoin="round" />
+<polyline
+  key={item.id}
+  points={item.points.map((p) => `${p.x},${p.y}`).join(" ")}
+  fill="none"
+  stroke={item.color}
+  strokeWidth={item.strokeWidth || 3}
+  vectorEffect="non-scaling-stroke"
+  strokeLinecap="round"
+  strokeLinejoin="round"
+/>
       );
     }
 
@@ -1469,16 +1491,18 @@ showPdfNotification(
     const width = Math.abs(item.width);
     const height = Math.abs(item.height);
     const stroke = item.color;
-    const strokeWidthValue = Math.max(0.25, item.strokeWidth / 4);
+    const strokeWidthValue = item.strokeWidth || 3;
 
     if (item.type === "rectangle") {
       return <rect key={item.id} x={x} y={y} width={width} height={height}
-        fill="none" stroke={stroke} strokeWidth={strokeWidthValue} />;
+        fill="none" stroke={stroke} strokeWidth={strokeWidthValue}
+        vectorEffect="non-scaling-stroke" />;
     }
     if (item.type === "circle") {
       return <ellipse key={item.id} cx={x + width / 2} cy={y + height / 2}
         rx={width / 2} ry={height / 2} fill="none"
-        stroke={stroke} strokeWidth={strokeWidthValue} />;
+        stroke={stroke} strokeWidth={strokeWidthValue}
+        vectorEffect="non-scaling-stroke" />;
     }
     if (item.type === "arrow") {
       const x1 = item.x;
@@ -1494,8 +1518,8 @@ showPdfNotification(
       return (
         <g key={item.id} stroke={stroke} strokeWidth={strokeWidthValue}
           fill="none" strokeLinecap="round">
-          <line x1={x1} y1={y1} x2={x2} y2={y2} />
-          <polyline points={`${leftX},${leftY} ${x2},${y2} ${rightX},${rightY}`} />
+          <line x1={x1} y1={y1} x2={x2} y2={y2} vectorEffect="non-scaling-stroke" />
+          <polyline points={`${leftX},${leftY} ${x2},${y2} ${rightX},${rightY}`} vectorEffect="non-scaling-stroke" />
         </g>
       );
     }
@@ -2055,6 +2079,63 @@ rotate={
                 </div>
               </section>
             </Document>
+
+            {selectedText && selectionToolbarPosition &&
+  createPortal(
+    <div
+      className="pdf-selection-toolbar"
+      style={{
+        position: "fixed",
+        top: selectionToolbarPosition.top,
+        left: selectionToolbarPosition.left,
+        transform: "translateX(-50%)",
+        zIndex: 100000,
+      }}
+      onMouseDown={(event) => event.preventDefault()}
+    >
+      <button
+  type="button"
+  className="pdf-selection-highlight-action"
+  title="Highlight selected text"
+  onClick={() => handleApplyTextAnnotation("highlight")}
+>
+  <Highlighter size={17} />
+  <span>Highlight</span>
+</button>
+
+      <button
+        type="button"
+        title="Underline"
+        onClick={() => handleApplyTextAnnotation("underline")}
+      >
+        <Underline size={17} />
+      </button>
+
+      <button
+        type="button"
+        title="Strikethrough"
+        onClick={() => handleApplyTextAnnotation("strike")}
+      >
+        <Strikethrough size={17} />
+      </button>
+
+      <span className="pdf-selection-toolbar-divider" />
+
+      <button
+        type="button"
+        title="Close"
+        onClick={() => {
+          setSelectedText("");
+          setSelectionRects([]);
+          setSelectionToolbarPosition(null);
+          window.getSelection()?.removeAllRanges();
+        }}
+      >
+        ×
+      </button>
+    </div>,
+    document.body
+  )}
 
             {(isPdfLoading || error) && (
               <div className="pdf-loading-screen">

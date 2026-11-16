@@ -560,6 +560,7 @@ const temporarySessionKey =
   const [saveStatus, setSaveStatus] = useState("Loading document...");
   const [loadError, setLoadError] = useState("");
   const [showMoreTools, setShowMoreTools] = useState(false);
+  const [selectedFontFamily, setSelectedFontFamily] = useState("Arial");
 
   // New editor workspace state
   const [activePanel, setActivePanel] = useState("");
@@ -1728,9 +1729,23 @@ useEffect(() => {
         <div className="nova-toolbar-group nova-toolbar-font">
           <button type="button" title="Heading 1" aria-label="Heading 1" className={editor?.isActive("heading", { level: 1 }) ? "active" : ""} onMouseDown={(e) => e.preventDefault()} onClick={() => runCommand((chain) => chain.toggleHeading({ level: 1 }))}><Heading1 size={18} /></button>
           <button type="button" title="Heading 2" aria-label="Heading 2" className={editor?.isActive("heading", { level: 2 }) ? "active" : ""} onMouseDown={(e) => e.preventDefault()} onClick={() => runCommand((chain) => chain.toggleHeading({ level: 2 }))}><Heading2 size={18} /></button>
-          <select className="nova-font-family-select" aria-label="Font family" defaultValue="Arial" onChange={(e) => runCommand((chain) => chain.setFontFamily(e.target.value))}>
-            <option>Arial</option><option>Inter</option><option>Georgia</option><option>Times New Roman</option><option>Courier New</option><option>Verdana</option>
-          </select>
+          <select
+  className="nova-font-family-select"
+  aria-label="Font family"
+  value={selectedFontFamily}
+  onChange={(e) => {
+    const font = e.target.value;
+    setSelectedFontFamily(font);
+    runCommand((chain) => chain.setFontFamily(font));
+  }}
+>
+  <option value="Arial">Arial</option>
+  <option value="Inter">Inter</option>
+  <option value="Georgia">Georgia</option>
+  <option value="Times New Roman">Times New Roman</option>
+  <option value="Courier New">Courier New</option>
+  <option value="Verdana">Verdana</option>
+</select>
           <select className="nova-font-size-select" aria-label="Font size" defaultValue="12pt" onChange={(e) => runCommand((chain) => chain.setFontSize(e.target.value))}>
             {["8pt", "9pt", "10pt", "11pt", "12pt", "14pt", "16pt", "18pt", "20pt", "24pt", "28pt", "36pt"].map((size) => <option key={size} value={size}>{size.replace("pt", "")}</option>)}
           </select>

@@ -4266,9 +4266,6 @@
   }
 }
 
-
-
-
 /* ========================================
    NOVA PDF MODAL SCROLLBARS
 ======================================== */
@@ -4359,4 +4356,144 @@
 .pdf-page-preview-footer button:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 3px;
+}
+
+
+/* ========================================
+   NOVA PDF - Floating Text Selection Toolbar
+======================================== */
+
+.pdf-selection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+  animation: pdf-toolbar-appear 0.15s ease-out;
+}
+
+.pdf-selection-toolbar button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.pdf-selection-toolbar button:hover {
+  background: var(--surface-hover);
+  color: var(--primary);
+  border-color: var(--border);
+}
+
+.pdf-selection-toolbar button:active {
+  transform: scale(0.94);
+}
+
+.pdf-selection-toolbar button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.pdf-selection-toolbar-divider {
+  width: 1px;
+  height: 25px;
+  margin: 0 3px;
+  background: var(--border);
+}
+
+@keyframes pdf-toolbar-appear {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (max-width: 480px) {
+  .pdf-selection-toolbar {
+    gap: 3px;
+    padding: 5px;
+    border-radius: 10px;
+  }
+
+  .pdf-selection-toolbar button {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+.pdf-selection-toolbar .pdf-selection-highlight-action {
+  width: auto;
+  min-width: 104px;
+  padding: 0 11px;
+  gap: 7px;
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  font-weight: 600;
+}
+
+.pdf-selection-toolbar .pdf-selection-highlight-action:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.pdf-selection-highlight-action span {
+  font-size: 13px;
+}
+
+
+/* NOVA PDF - Smooth text selection */
+.pdf-page-container .react-pdf__Page__textContent {
+  z-index: 9 !important;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text;
+}
+
+.pdf-page-container .react-pdf__Page__textContent span {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text;
+}
+
+.pdf-page-container .react-pdf__Page__textContent span::selection {
+  background: rgba(99, 102, 241, 0.35);
+  color: inherit;
+}
+
+.pdf-annotation-layer {
+  z-index: 8;
+  pointer-events: none;
+}
+
+.pdf-annotation-layer.interactive {
+  pointer-events: all;
+  cursor: crosshair;
+}
+
+/* Keep annotation drawing above the PDF text-selection layer */
+.pdf-annotation-layer.interactive {
+  z-index: 10 !important;
+  pointer-events: all !important;
+  cursor: crosshair;
 }
