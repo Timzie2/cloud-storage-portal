@@ -12,6 +12,8 @@ import {
   Sparkles,
   FilePenLine,
   FilePlus,
+  FilePlus2,
+  Scissors,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -56,6 +58,24 @@ const officeApps = [
     color: "pdf",
     status: "Available",
   },
+  {
+  id: "merge-pdf",
+  name: "Merge PDFs",
+  description: "Combine multiple PDF files into one document.",
+  detail: "PDF tools",
+  icon: FilePlus2,
+  color: "merge",
+  status: "Available",
+},
+{
+  id: "split-pdf",
+  name: "Split PDF",
+  description: "Separate PDF pages into individual documents.",
+  detail: "PDF tools",
+  icon: Scissors,
+  color: "merge",
+  status: "Available",
+},
 ];
 
 function Office() {
@@ -191,6 +211,50 @@ const openApp = (app) => {
         from: "/office",
       },
     });
+  }
+
+  if (app.id === "merge-pdf") {
+  navigate("/merge-pdf", {
+    state: {
+      from: "/office",
+    },
+  });
+}
+
+if (app.id === "split-pdf") {
+  navigate("/split-pdf", {
+    state: { from: "/office" },
+  });
+}
+};
+
+const handleOpenRecentPdf = async (file) => {
+  try {
+    const { data: blob, error } = await supabase.storage
+      .from("user-files")
+      .download(file.storage_path);
+
+    if (error) throw error;
+
+    const pendingPdfFile = new window.File(
+      [blob],
+      file.name,
+      {
+        type: "application/pdf",
+      }
+    );
+
+    navigate("/pdf", {
+      state: {
+        from: "/office",
+        pendingPdfFile,
+        sourceFileId: file.id,
+        fileName: file.name,
+      },
+    });
+  } catch (error) {
+    console.error("Unable to open PDF:", error);
+    alert(error.message || "Unable to open this PDF.");
   }
 };
 
@@ -379,6 +443,11 @@ navigate("/documents/new", {
     setDocxChoiceFile(document.file);
     return;
   }
+
+  if (document.kind === "file" && document.type === "pdf") {
+  handleOpenRecentPdf(document.file);
+  return;
+}
 
   navigate(`/documents/${document.id}`, {
     state: { from: "/office" },

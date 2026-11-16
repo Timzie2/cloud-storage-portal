@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Document, Page, pdfjs } from "react-pdf";
 import { PDFDocument, rgb, StandardFonts, degrees } from "pdf-lib";
+import CustomSelect from "../components/CustomSelect";
 import { createPortal } from "react-dom";
 import {
   ArrowLeft, Upload, ZoomIn, ZoomOut, ChevronLeft, ChevronRight,
@@ -9,7 +10,7 @@ import {
   Type, Pencil, Square, Circle, ArrowUpRight, Eraser, Users,
   MessageSquare, MoreVertical, SlidersHorizontal, CheckCircle2,
   Download, Printer, Undo2, Redo2,
-RotateCw, RotateCcw,
+RotateCw, RotateCcw, Trash2, AlertCircle, Info, FilePlus2,
 } from "lucide-react";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -111,6 +112,28 @@ const [isRenamingSaving, setIsRenamingSaving] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isSavingAnnotatedPdf, setIsSavingAnnotatedPdf] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [showDeletePageModal, setShowDeletePageModal] = useState(false);
+  const [showInsertPdfModal, setShowInsertPdfModal] = useState(false);
+  const [insertPdfFile, setInsertPdfFile] = useState(null);
+  const [insertPdfPageCount, setInsertPdfPageCount] = useState(0);
+  const [selectedInsertPages, setSelectedInsertPages] = useState([]);
+  const [insertPosition, setInsertPosition] = useState("after");
+  const [isImportingPages, setIsImportingPages] = useState(false);
+  
+  const insertPdfInputRef = useRef(null);
+  const [previewInsertPage, setPreviewInsertPage] = useState(null);
+  const [insertPreviewZoom, setInsertPreviewZoom] = useState(1);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [showTextModal, setShowTextModal] = useState(false);
+  const [showInsertPositionMenu, setShowInsertPositionMenu] = useState(false);
+  const [textDraft, setTextDraft] = useState("");
+  const [pendingTextPoint, setPendingTextPoint] = useState(null);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notificationTitle, setNotificationTitle] = useState("");
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [notificationType, setNotificationType] = useState("success");
   const [comments, setComments] = useState([
     { id: 1, name: "Abiola", initial: "A", time: "2 hours ago", message: "Can we confirm the arrival check-in time?" },
     { id: 2, name: "You", initial: "N", time: "1 hour ago", message: "I've highlighted the restricted items for clarity." },
@@ -155,6 +178,22 @@ const presetColors = [
 
 const suppressThumbnailClickRef = useRef(false);
 
+// Warn users before leaving with unsaved PDF changes
+useEffect(() => {
+  const handleBeforeUnload = (event) => {
+    if (!hasUnsavedChanges) return;
+
+    event.preventDefault();
+    event.returnValue = "";
+  };
+
+  window.addEventListener("beforeunload", handleBeforeUnload);
+
+  return () => {
+    window.removeEventListener("beforeunload", handleBeforeUnload);
+  };
+}, [hasUnsavedChanges]);
+
   useEffect(() => {
   if (!showColorPalette) return;
 
@@ -190,17 +229,19 @@ const handleOutsideClick = (event) => {
     [annotations, pageNumber]
   );
 
-  const recordAnnotations = (next) => {
-    setUndoStack((stack) => [...stack, annotations]);
-    setRedoStack([]);
-    setAnnotations(next);
-  };
+const recordAnnotations = (next) => {
+  setUndoStack((stack) => [...stack, annotations]);
+  setRedoStack([]);
+  setAnnotations(next);
+  setHasUnsavedChanges(true);
+};
 
   const undo = () => {
     if (!undoStack.length) return;
     const previous = undoStack[undoStack.length - 1];
     setRedoStack((stack) => [...stack, annotations]);
     setAnnotations(previous);
+    setHasUnsavedChanges(true);
     setUndoStack((stack) => stack.slice(0, -1));
   };
 
@@ -209,8 +250,164 @@ const handleOutsideClick = (event) => {
     const next = redoStack[redoStack.length - 1];
     setUndoStack((stack) => [...stack, annotations]);
     setAnnotations(next);
+    setHasUnsavedChanges(true);
     setRedoStack((stack) => stack.slice(0, -1));
   };
+
+  const handleInsertPdfSelection = async (event) => {
+  const selectedFile = event.target.files?.[0];
+
+  if (!selectedFile) return;
+
+  if (
+    selectedFile.type !== "application/pdf" &&
+    !selectedFile.name.toLowerCase().endsWith(".pdf")
+  ) {
+    showPdfNotification(
+      "Invalid file",
+      "Please select a valid PDF file.",
+      "error"
+    );
+    event.target.value = "";
+    return;
+  }
+
+  try {
+    const pdfBytes = await selectedFile.arrayBuffer();
+    const sourcePdf = await PDFDocument.load(pdfBytes);
+
+    const pageCount = sourcePdf.getPageCount();
+
+    if (pageCount === 0) {
+      throw new Error("This PDF does not contain any pages.");
+    }
+
+    setInsertPdfFile(selectedFile);
+    setInsertPdfPageCount(pageCount);
+    setSelectedInsertPages(
+      Array.from({ length: pageCount }, (_, index) => index + 1)
+    );
+    setShowInsertPdfModal(true);
+  } catch (loadError) {
+    console.error("Unable to read PDF for insertion:", loadError);
+
+    showPdfNotification(
+      "Unable to open PDF",
+      loadError.message || "This PDF could not be read.",
+      "error"
+    );
+
+    setInsertPdfFile(null);
+    setInsertPdfPageCount(0);
+    setSelectedInsertPages([]);
+  }
+
+  event.target.value = "";
+};
+
+const handleInsertSelectedPages = async () => {
+  if (
+    !file ||
+    !insertPdfFile ||
+    !selectedInsertPages.length ||
+    isImportingPages
+  ) {
+    return;
+  }
+
+  try {
+    setIsImportingPages(true);
+
+    // Preserve the current PDF's annotations, rotations and page order.
+    const currentBlob = await createAnnotatedPdfBlob();
+
+    if (!currentBlob) {
+      throw new Error("Unable to prepare the current PDF.");
+    }
+
+    const currentPdf = await PDFDocument.load(
+      await currentBlob.arrayBuffer()
+    );
+
+    const sourcePdf = await PDFDocument.load(
+      await insertPdfFile.arrayBuffer()
+    );
+
+    const combinedPdf = await PDFDocument.create();
+
+    // Copy the current PDF pages.
+    const currentPages = await combinedPdf.copyPages(
+      currentPdf,
+      currentPdf.getPageIndices()
+    );
+
+    // Copy only the selected pages from the imported PDF.
+    const importedPages = await combinedPdf.copyPages(
+      sourcePdf,
+      selectedInsertPages.map((page) => page - 1)
+    );
+
+    // Determine where the new pages should go.
+    const currentIndex = pageOrder.indexOf(pageNumber);
+
+    const insertionIndex = Math.max(
+      0,
+      currentIndex + (insertPosition === "after" ? 1 : 0)
+    );
+
+    currentPages.splice(insertionIndex, 0, ...importedPages);
+
+    currentPages.forEach((page) => {
+      combinedPdf.addPage(page);
+    });
+
+    const combinedBytes = await combinedPdf.save();
+
+    const combinedBlob = new Blob([combinedBytes], {
+      type: "application/pdf",
+    });
+
+    const totalPages = combinedPdf.getPageCount();
+
+    // Replace the editor's in-memory PDF.
+    setFile(combinedBlob);
+    setNumPages(totalPages);
+    setPageNumber(insertionIndex + 1);
+
+    // The existing annotations and rotations are now embedded in the PDF.
+    setAnnotations([]);
+    setPageRotations({});
+    setOriginalPageRotations({});
+    setUndoStack([]);
+    setRedoStack([]);
+    setPageOrder(
+      Array.from({ length: totalPages }, (_, index) => index + 1)
+    );
+
+    setHasUnsavedChanges(true);
+    setShowInsertPdfModal(false);
+
+    showPdfNotification(
+      "Pages inserted",
+      `${selectedInsertPages.length} page(s) inserted successfully.`,
+      "success"
+    );
+
+    setInsertPdfFile(null);
+    setInsertPdfPageCount(0);
+    setSelectedInsertPages([]);
+  } catch (insertError) {
+    console.error("PDF page insertion failed:", insertError);
+
+    showPdfNotification(
+      "Insertion failed",
+      insertError.message || "Unable to insert the selected pages.",
+      "error"
+    );
+  } finally {
+    setIsImportingPages(false);
+  }
+};
 
   const handleFileUpload = (event) => {
     const selectedFile = event.target.files?.[0];
@@ -224,6 +421,7 @@ const handleOutsideClick = (event) => {
     }
     setError("");
     setFile(selectedFile);
+    setSourceFileId(null);
     setPdfDocument(null);
     setZoomMode("custom");
     setScale(1);
@@ -238,6 +436,7 @@ const handleOutsideClick = (event) => {
     setOriginalPageRotations({});
     setPageOrder([]);
     setDraggedPage(null);
+    setHasUnsavedChanges(false);
   };
 
   const handleRenameFile = async () => {
@@ -271,12 +470,22 @@ const handleOutsideClick = (event) => {
       setFile(renamedFile);
     }
 
-    setIsRenaming(false);
-    window.alert("PDF renamed successfully.");
-  } catch (renameError) {
-    console.error("PDF rename failed:", renameError);
-    window.alert(renameError.message || "Unable to rename this PDF.");
-  } finally {
+setIsRenaming(false);
+
+showPdfNotification(
+  "PDF renamed",
+  "PDF renamed successfully.",
+  "success"
+);
+} catch (renameError) {
+  console.error("PDF rename failed:", renameError);
+
+  showPdfNotification(
+    "Rename failed",
+    renameError.message || "Unable to rename this PDF.",
+    "error"
+  );
+} finally {
     setIsRenamingSaving(false);
   }
 };
@@ -480,27 +689,13 @@ const handleOverlayPointerDown = (event) => {
     return;
   }
 
-  if (activeTool === "text") {
-    const value = window.prompt("Enter text to add to the PDF:");
+if (activeTool === "text") {
+  setPendingTextPoint(point);
+  setTextDraft("");
+  setShowTextModal(true);
 
-    if (value?.trim()) {
-      recordAnnotations([
-        ...annotations,
-        {
-          id: makeId(),
-          pageNumber,
-          type: "text",
-          text: value.trim(),
-          x: point.x,
-          y: point.y,
-          color: annotationColor,
-          strokeWidth,
-        },
-      ]);
-    }
-
-    return;
-  }
+  return;
+}
 
   drawingRef.current = true;
 
@@ -592,8 +787,78 @@ const changePage = (direction) => {
 };
 
 
+
+const handleDeletePage = () => {
+  if (pageOrder.length <= 1) return;
+
+  const currentIndex = pageOrder.indexOf(pageNumber);
+  if (currentIndex === -1) return;
+
+  setShowDeletePageModal(true);
+};
+
+const confirmDeletePage = () => {
+  const currentIndex = pageOrder.indexOf(pageNumber);
+
+  if (currentIndex === -1 || pageOrder.length <= 1) {
+    setShowDeletePageModal(false);
+    return;
+  }
+
+  const nextOrder = pageOrder.filter(
+    (page) => page !== pageNumber
+  );
+
+  setPageOrder(nextOrder);
+  setHasUnsavedChanges(true);
+
+  const nextIndex = Math.min(
+    currentIndex,
+    nextOrder.length - 1
+  );
+
+  setPageNumber(nextOrder[nextIndex]);
+  setSelectedText("");
+  setSelectionRects([]);
+  setShowDeletePageModal(false);
+};
+
+
+const handleConfirmText = () => {
+  const trimmedText = textDraft.trim();
+
+  if (!trimmedText || !pendingTextPoint) return;
+
+  recordAnnotations([
+    ...annotations,
+    {
+      id: makeId(),
+      pageNumber,
+      type: "text",
+      text: trimmedText,
+      x: pendingTextPoint.x,
+      y: pendingTextPoint.y,
+      color: annotationColor,
+      strokeWidth,
+    },
+  ]);
+
+  setTextDraft("");
+  setPendingTextPoint(null);
+  setShowTextModal(false);
+};
+
+
+const showPdfNotification = (title, message, type = "success") => {
+  setNotificationTitle(title);
+  setNotificationMessage(message);
+  setNotificationType(type);
+  setShowNotificationModal(true);
+};
+
 const handlePageDrop = (targetPage, sourcePage = draggedPage) => {
   if (sourcePage === null || sourcePage === targetPage) return;
+  setHasUnsavedChanges(true);
 
   setPageOrder((current) => {
     const next = [...current];
@@ -715,12 +980,30 @@ const handleThumbnailPointerCancel = (event) => {
 
 
   const rotatePage = (direction) => {
+    setHasUnsavedChanges(true);
+
   setPageRotations((current) => ({
     ...current,
     [pageNumber]: (
       (current[pageNumber] || 0) + direction + 360
     ) % 360,
   }));
+};
+
+const handleDiscardChanges = () => {
+  setAnnotations([]);
+  setUndoStack([]);
+  setRedoStack([]);
+  setPageRotations({});
+  setPageOrder(
+    Array.from({ length: numPages }, (_, index) => index + 1)
+  );
+  setPageNumber(1);
+  setDraftShape(null);
+  setSelectedText("");
+  setSelectionRects([]);
+  setHasUnsavedChanges(false);
+  setShowDiscardModal(false);
 };
 
   const handleDownload = () => {
@@ -965,12 +1248,15 @@ const handleExportAnnotated = async () => {
     link.remove();
 
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch (exportError) {
-    console.error("PDF export failed:", exportError);
-    window.alert(
-      exportError.message || "Unable to export the annotated PDF."
-    );
-  }
+} catch (exportError) {
+  console.error("PDF export failed:", exportError);
+
+  showPdfNotification(
+    "Export failed",
+    exportError.message || "Unable to export the annotated PDF.",
+    "error"
+  );
+}
 };
 
 
@@ -979,7 +1265,11 @@ const handleSaveAnnotatedToNOVA = async () => {
   if (isSavingAnnotatedPdf) return;
 
 if (!user?.id) {
-  window.alert("Please sign in to save this PDF to NOVA.");
+  showPdfNotification(
+    "Sign in required",
+    "Please sign in to save this PDF to NOVA.",
+    "info"
+  );
   return;
 }
 
@@ -992,19 +1282,32 @@ if (!user?.id) {
     const baseName = (fileName || "NOVA-document.pdf")
       .replace(/\.pdf$/i, "");
 
-    await saveNewPdfToMyFiles(
-      user.id,
-      blob,
-      `${baseName} (annotated).pdf`
-    );
+const savedFile = await saveNewPdfToMyFiles(
+  user.id,
+  blob,
+  `${baseName} (annotated).pdf`
+);
 
-    window.alert("Annotated PDF saved successfully to NOVA My Files.");
-  } catch (saveError) {
-    console.error("Saving annotated PDF failed:", saveError);
-    window.alert(
-      saveError.message || "Unable to save the annotated PDF to NOVA."
-    );
-  } finally {
+if (!savedFile) {
+  throw new Error("The PDF could not be saved to NOVA My Files.");
+}
+
+setHasUnsavedChanges(false);
+
+showPdfNotification(
+  "PDF saved",
+  "Annotated PDF saved successfully to NOVA My Files.",
+  "success"
+);
+} catch (saveError) {
+  console.error("Saving annotated PDF failed:", saveError);
+
+  showPdfNotification(
+    "Save failed",
+    saveError.message || "Unable to save the annotated PDF to NOVA.",
+    "error"
+  );
+} finally {
     setIsSavingAnnotatedPdf(false);
   }
 };
@@ -1204,9 +1507,24 @@ if (!user?.id) {
 
   return (
     <div className="nova-pdf">
+      <input
+  ref={insertPdfInputRef}
+  type="file"
+  accept="application/pdf,.pdf"
+  style={{ display: "none" }}
+  onChange={handleInsertPdfSelection}
+/>
       <header className="pdf-header">
         <div className="pdf-header-left">
-          <button className="pdf-back-button" onClick={() => navigate(returnTo)}
+          <button className="pdf-back-button" 
+          onClick={() => {
+  if (hasUnsavedChanges) {
+    setShowLeaveModal(true);
+    return;
+  }
+
+  navigate(returnTo);
+}}
             type="button" title={`Back to ${returnLabel}`}>
             <ArrowLeft size={19} />
           </button>
@@ -1268,6 +1586,12 @@ if (!user?.id) {
   )}
 
   <span>{file ? "PDF document" : "Ready to open a PDF"}</span>
+
+{hasUnsavedChanges && (
+  <span className="pdf-unsaved-indicator">
+    Unsaved changes
+  </span>
+)}
 </div>
 
         </div>
@@ -1309,6 +1633,17 @@ if (!user?.id) {
   {isSavingAnnotatedPdf ? "Saving..." : "Save annotated PDF to My Files"}
 </button>
 
+<button
+  type="button"
+  disabled={!hasUnsavedChanges || isSavingAnnotatedPdf}
+onClick={() => {
+  setShowDiscardModal(true);
+  setShowMoreMenu(false);
+}}
+>
+  <RotateCcw size={17} />
+  Discard unsaved changes
+</button>
 
   <button
     type="button"
@@ -1535,16 +1870,54 @@ if (!user?.id) {
             </div>
             <div className="pdf-tool-divider" />
             <div className="pdf-page-controls">
-              <button type="button" onClick={() => changePage(-1)}
-                disabled={pageOrder.indexOf(pageNumber) === 0} title="Previous page">
-                <ChevronLeft size={21} />
-              </button>
-              <span>{pageOrder.indexOf(pageNumber) + 1} / {numPages}</span>
-              <button type="button" onClick={() => changePage(1)}
-                disabled={pageOrder.indexOf(pageNumber) === pageOrder.length - 1} title="Next page">
-                <ChevronRight size={21} />
-              </button>
-            </div>
+  <button
+    type="button"
+    onClick={() => changePage(-1)}
+    disabled={pageOrder.indexOf(pageNumber) === 0}
+    title="Previous page"
+  >
+    <ChevronLeft size={21} />
+  </button>
+
+  <span>
+    {pageOrder.indexOf(pageNumber) + 1} / {pageOrder.length}
+  </span>
+
+  <button
+    type="button"
+    onClick={() => changePage(1)}
+    disabled={pageOrder.indexOf(pageNumber) === pageOrder.length - 1}
+    title="Next page"
+  >
+    <ChevronRight size={21} />
+  </button>
+
+  <button
+  type="button"
+  className="pdf-control-btn"
+  title="Insert pages from another PDF"
+  aria-label="Insert pages from another PDF"
+onClick={() => {
+  setInsertPdfFile(null);
+  setInsertPdfPageCount(0);
+  setSelectedInsertPages([]);
+  insertPdfInputRef.current?.click();
+}}
+>
+  <FilePlus2 size={18} />
+</button>
+
+  <button
+    type="button"
+    className="pdf-delete-page-button"
+    onClick={handleDeletePage}
+    disabled={pageOrder.length <= 1}
+    title="Delete current page"
+    aria-label="Delete current page"
+  >
+    <Trash2 size={18} />
+  </button>
+</div>
           </div>
 
           <main className={`pdf-workspace ${showComments ? "" : "pdf-comments-hidden"}`}>
@@ -1732,6 +2105,475 @@ rotate={
           {error && <p className="pdf-error">{error}</p>}
         </>
       )}
+
+      {showInsertPdfModal && (
+  <div className="pdf-modal-overlay">
+    <div
+      className="pdf-confirm-modal pdf-insert-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pdf-insert-title"
+    >
+      <div className="pdf-confirm-icon">
+        <FilePlus2 size={24} />
+      </div>
+
+      <h3 id="pdf-insert-title">Insert pages from another PDF</h3>
+
+      <p>
+        {insertPdfFile?.name} — {insertPdfPageCount} pages available.
+        Select the pages you want to insert.
+      </p>
+
+      <label className="pdf-insert-select-all">
+        <input
+          type="checkbox"
+          checked={
+            selectedInsertPages.length === insertPdfPageCount &&
+            insertPdfPageCount > 0
+          }
+          onChange={(event) => {
+            setSelectedInsertPages(
+              event.target.checked
+                ? Array.from(
+                    { length: insertPdfPageCount },
+                    (_, index) => index + 1
+                  )
+                : []
+            );
+          }}
+        />
+        Select all pages
+      </label>
+
+<Document
+  file={insertPdfFile}
+  className="pdf-insert-page-list"
+  loading={<p>Loading page previews...</p>}
+  error={<p>Unable to generate page previews.</p>}
+>
+  {Array.from(
+    { length: insertPdfPageCount },
+    (_, index) => index + 1
+  ).map((page) => (
+    <label
+      key={page}
+      className={`pdf-insert-page-option ${
+        selectedInsertPages.includes(page) ? "selected" : ""
+      }`}
+    >
+<div
+  className="pdf-insert-page-preview"
+  role="button"
+  tabIndex={0}
+  title={`Preview page ${page}`}
+  onClick={() => setPreviewInsertPage(page)}
+  onKeyDown={(event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setPreviewInsertPage(page);
+    }
+  }}
+>
+  <Page
+    pageNumber={page}
+    width={130}
+    renderTextLayer={false}
+    renderAnnotationLayer={false}
+  />
+</div>
+
+      <div className="pdf-insert-page-checkbox">
+        <input
+          type="checkbox"
+          checked={selectedInsertPages.includes(page)}
+          onChange={(event) => {
+            setSelectedInsertPages((current) =>
+              event.target.checked
+                ? [...current, page].sort((a, b) => a - b)
+                : current.filter((item) => item !== page)
+            );
+          }}
+        />
+        <span>Page {page}</span>
+      </div>
+    </label>
+  ))}
+</Document>
+      <label className="pdf-insert-position-label">
+        Insert pages:
+      </label>
+
+<CustomSelect
+  value={insertPosition}
+  onChange={setInsertPosition}
+  options={[
+    { value: "before", label: "Before current page" },
+    { value: "after", label: "After current page" },
+  ]}
+  ariaLabel="Choose where to insert pages"
+/>
+
+      <div className="pdf-confirm-actions">
+        <button
+          type="button"
+          className="pdf-confirm-cancel"
+          onClick={() => {
+            setShowInsertPdfModal(false);
+            setInsertPdfFile(null);
+            setInsertPdfPageCount(0);
+            setSelectedInsertPages([]);
+          }}
+          disabled={isImportingPages}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className="pdf-confirm-danger"
+          onClick={handleInsertSelectedPages}
+          disabled={
+            !selectedInsertPages.length || isImportingPages
+          }
+        >
+          {isImportingPages
+            ? "Inserting..."
+            : `Insert ${selectedInsertPages.length} page(s)`}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{previewInsertPage !== null && insertPdfFile && (
+  <div className="pdf-modal-overlay pdf-page-preview-overlay">
+    <div
+      className="pdf-confirm-modal pdf-page-preview-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pdf-preview-title"
+    >
+      <div className="pdf-page-preview-header">
+        <h3 id="pdf-preview-title">
+          Page {previewInsertPage} of {insertPdfPageCount}
+        </h3>
+
+        <button
+          type="button"
+          onClick={() => setPreviewInsertPage(null)}
+          aria-label="Close page preview"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="pdf-insert-preview-zoom">
+  <button
+    type="button"
+    title="Zoom out"
+    onClick={() =>
+      setInsertPreviewZoom((zoom) =>
+        Math.max(0.5, +(zoom - 0.25).toFixed(2))
+      )
+    }
+    disabled={insertPreviewZoom <= 0.5}
+  >
+    −
+  </button>
+
+  <span>{Math.round(insertPreviewZoom * 100)}%</span>
+
+  <button
+    type="button"
+    title="Zoom in"
+    onClick={() =>
+      setInsertPreviewZoom((zoom) =>
+        Math.min(3, +(zoom + 0.25).toFixed(2))
+      )
+    }
+    disabled={insertPreviewZoom >= 3}
+  >
+    +
+  </button>
+
+  <button
+    type="button"
+    title="Reset zoom"
+    onClick={() => setInsertPreviewZoom(1)}
+  >
+    Reset
+  </button>
+</div>
+
+      <div className="pdf-page-preview-content">
+        <Document
+          file={insertPdfFile}
+          loading={<p>Loading page...</p>}
+          error={<p>Unable to preview this page.</p>}
+        >
+<Page
+  pageNumber={previewInsertPage}
+  width={Math.round(
+    Math.min(650, window.innerWidth - 100) * insertPreviewZoom
+  )}
+  renderTextLayer={false}
+  renderAnnotationLayer={false}
+/>
+        </Document>
+      </div>
+
+      <div className="pdf-page-preview-footer">
+        <button
+          type="button"
+          className="pdf-confirm-cancel"
+          disabled={previewInsertPage <= 1}
+          onClick={() =>
+            setPreviewInsertPage((page) => page - 1)
+          }
+        >
+          Previous
+        </button>
+
+        <span>
+          {selectedInsertPages.includes(previewInsertPage)
+            ? "Selected for insertion"
+            : "Not selected"}
+        </span>
+
+        <button
+          type="button"
+          className="pdf-confirm-cancel"
+          disabled={previewInsertPage >= insertPdfPageCount}
+          onClick={() =>
+            setPreviewInsertPage((page) => page + 1)
+          }
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+      {showDiscardModal && (
+  <div className="pdf-modal-overlay">
+    <div
+      className="pdf-confirm-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pdf-discard-title"
+    >
+      <div className="pdf-confirm-icon">
+        <RotateCcw size={24} />
+      </div>
+
+      <h3 id="pdf-discard-title">Discard unsaved changes?</h3>
+
+      <p>
+        All your unsaved annotations, rotations and page
+        arrangements will be lost. Your original PDF will
+        remain unchanged.
+      </p>
+
+      <div className="pdf-confirm-actions">
+        <button
+          type="button"
+          className="pdf-confirm-cancel"
+          onClick={() => setShowDiscardModal(false)}
+        >
+          Keep editing
+        </button>
+
+        <button
+          type="button"
+          className="pdf-confirm-danger"
+          onClick={handleDiscardChanges}
+        >
+          Discard changes
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+{showDeletePageModal && (
+  <div className="pdf-modal-overlay">
+    <div
+      className="pdf-confirm-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pdf-delete-title"
+    >
+      <div className="pdf-confirm-icon">
+        <Trash2 size={24} />
+      </div>
+
+      <h3 id="pdf-delete-title">Delete this page?</h3>
+
+      <p>
+        Are you sure you want to delete page{" "}
+        {pageOrder.indexOf(pageNumber) + 1}? This action
+        cannot be undone. Your original PDF will remain unchanged
+        until you save your changes.
+      </p>
+
+      <div className="pdf-confirm-actions">
+        <button
+          type="button"
+          className="pdf-confirm-cancel"
+          onClick={() => setShowDeletePageModal(false)}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className="pdf-confirm-danger"
+          onClick={confirmDeletePage}
+        >
+          Delete page
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+{showLeaveModal && (
+  <div className="pdf-modal-overlay">
+    <div
+      className="pdf-confirm-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pdf-leave-title"
+    >
+      <div className="pdf-confirm-icon">
+        <ArrowLeft size={24} />
+      </div>
+
+      <h3 id="pdf-leave-title">Leave PDF editor?</h3>
+
+      <p>
+        You have unsaved changes to this PDF. If you leave
+        now, your changes will be lost. Your original PDF
+        will remain unchanged.
+      </p>
+
+      <div className="pdf-confirm-actions">
+        <button
+          type="button"
+          className="pdf-confirm-cancel"
+          onClick={() => setShowLeaveModal(false)}
+        >
+          Stay here
+        </button>
+
+        <button
+          type="button"
+          className="pdf-confirm-danger"
+          onClick={() => {
+            setShowLeaveModal(false);
+            setHasUnsavedChanges(false);
+            navigate(returnTo);
+          }}
+        >
+          Leave without saving
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+{showTextModal && (
+  <div className="pdf-modal-overlay">
+    <div
+      className="pdf-confirm-modal pdf-text-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pdf-text-title"
+    >
+      <div className="pdf-confirm-icon">
+        <Type size={24} />
+      </div>
+
+      <h3 id="pdf-text-title">Add text to PDF</h3>
+
+      <p>
+        Enter the text you want to place at the selected position.
+      </p>
+
+      <textarea
+        className="pdf-text-input"
+        value={textDraft}
+        onChange={(event) => setTextDraft(event.target.value)}
+        placeholder="Type something..."
+        rows={4}
+        autoFocus
+      />
+
+      <div className="pdf-confirm-actions">
+        <button
+          type="button"
+          className="pdf-confirm-cancel"
+          onClick={() => {
+            setShowTextModal(false);
+            setTextDraft("");
+            setPendingTextPoint(null);
+          }}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className="pdf-confirm-danger"
+          onClick={handleConfirmText}
+          disabled={!textDraft.trim()}
+        >
+          Add text
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{showNotificationModal && (
+  <div className="pdf-modal-overlay">
+    <div
+      className={`pdf-confirm-modal pdf-notification-modal ${notificationType}`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pdf-notification-title"
+    >
+      <div className="pdf-confirm-icon">
+        {notificationType === "error" ? (
+          <AlertCircle size={24} />
+        ) : notificationType === "info" ? (
+          <Info size={24} />
+        ) : (
+          <CheckCircle2 size={24} />
+        )}
+      </div>
+
+      <h3 id="pdf-notification-title">{notificationTitle}</h3>
+      <p>{notificationMessage}</p>
+
+      <div className="pdf-confirm-actions">
+        <button
+          type="button"
+          className="pdf-confirm-danger"
+          onClick={() => setShowNotificationModal(false)}
+        >
+          Okay
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }

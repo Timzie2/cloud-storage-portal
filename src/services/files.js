@@ -132,6 +132,23 @@ export async function saveNewDocxToMyFiles(
   }
 }
 
+
+export async function getFileBlob(storagePath) {
+  if (!storagePath) {
+    throw new Error("Storage path is required.");
+  }
+
+  const { data, error } = await supabase.storage
+    .from(BUCKET_NAME)
+    .download(storagePath);
+
+  if (error) {
+    throw new Error("Could not load this PDF from My Files.");
+  }
+
+  return data;
+}
+
 export async function downloadFile(
   storagePath,
   fileName = null,

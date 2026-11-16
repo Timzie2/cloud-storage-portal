@@ -1,4 +1,3 @@
-
 import {
   createBrowserRouter,
   RouterProvider,
@@ -24,6 +23,8 @@ import AppLayout from "./components/AppLayout";
 import NovaLoader from "./components/NovaLoader";
 import Office from "./pages/Office";
 import PDF from "./pages/PDF";
+import MergePDF from "./pages/MergePDF";
+import SplitPDF from "./pages/SplitPDF";
 import { NavigationGuardProvider } from "./context/NavigationGuardContext";
 
 import "./styles/theme.css";
@@ -61,6 +62,8 @@ function AppContent() {
           <Route path="/documents/:documentId" element={<Documents />} />
           <Route path="/office" element={<Office />} />
           <Route path="/pdf" element={<PDF />} />
+          <Route path="/merge-pdf" element={<MergePDF />} />
+          <Route path="/split-pdf" element={<SplitPDF />} />
         </Routes>
       </AppLayout>
     </NavigationGuardProvider>

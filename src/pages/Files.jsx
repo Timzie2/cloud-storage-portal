@@ -685,6 +685,12 @@ const handlePreview = async (file) => {
     setOpenMenu(null);
     setMenuPosition(null);
 
+    // Open Word documents directly in NOVA Docs
+if (isDocxFile(file)) {
+  setDocxChoiceFile(file);
+  return;
+}
+
     // Open PDF files directly in NOVA PDF
     const isPdf =
       file.mime_type === "application/pdf" ||

@@ -4825,3 +4825,58 @@ html:not(.dark) .share-modal .share-modal-folder-name {
     width: 100%;
   }
 }
+
+/* ========================================
+   SIDEBAR LAYOUT FIX
+======================================== */
+
+.app-layout > .app-main:has(.nova-merge-pdf) {
+  margin-left: 240px;
+  width: calc(100% - 240px);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.nova-merge-pdf {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+/* Mobile layout */
+@media (max-width: 768px) {
+  .app-layout > .app-main:has(.nova-merge-pdf) {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* FIX: ACCOUNT FOR NOVA FIXED SIDEBAR */
+
+.app-layout > .app-main:has(.nova-split-pdf) {
+  margin-left: 240px;
+  width: calc(100% - 240px);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.nova-split-pdf {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+/* MOBILE RESPONSIVENESS */
+
+@media (max-width: 768px) {
+  .app-layout > .app-main:has(.nova-split-pdf) {
+    margin-left: 0;
+    width: 100%;
+  }
+}
